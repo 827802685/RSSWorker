@@ -8,15 +8,38 @@ RSSWorker 是一个轻量级的 RSS 订阅工具，可以部署在 Cloudflare Wo
 
 - bilibili 动态 (/bilibili/user/dynamic/:uid)
 - bilibili 视频 (/bilibili/user/video/:uid)
+- 抖音视频 (/douyin/user/:uid)
 - telegram 频道 (/telegram/channel/:username)
 - weibo 用户 (/weibo/user/:uid)
 - 小红书用户 (/xiaohongshu/user/:uid)
+
+### 控制面板
+
+访问根路径 `/` 即可打开控制面板，支持：
+- 可视化生成各平台 RSS 订阅链接
+- 一键复制订阅地址
+- 在线预览 RSS 输出
+- 暗色/亮色主题切换
+- API 接口 `/api/feeds` 获取所有订阅源信息
+
+### 抖音订阅
+
+> 抖音用户ID为 `sec_user_id`，以 `MS4wLjABAAAA` 开头。
+> 获取方法：
+> 1. 打开抖音网页版 (douyin.com)
+> 2. 进入目标用户的主页
+> 3. 从URL中获取 sec_user_id，如 `https://www.douyin.com/user/MS4wLjABAAAA...`
+> 4. 可能需要配置 Cookie：`wrangler secret put DOUYIN_COOKIE`
+
+### 小红书订阅
 
 > 小红书更新后不能再使用小红书号，需要使用小红书用户ID。  
 > 获取方法：  
 > 移动端：用户页面 > 右上角三个点 > 复制链接 > 获取链接中的用户ID  
 > 网页端：用户页面 > 链接中的用户ID  
 > 格式：https://www.xiaohongshu.com/user/profile/5d2aec020000000012037401
+
+### 微博订阅
 
 > 微博更新后需要加上Cookie
 > 获取方法（参考 https://docs.rsshub.app/zh/deploy/config#%E5%BE%AE%E5%8D%9A ） ：
@@ -29,7 +52,15 @@ RSSWorker 是一个轻量级的 RSS 订阅工具，可以部署在 Cloudflare Wo
 
 ## 部署
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yllhwa/RSSWorker)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/827802685/RSSWorker)
+
+### 自动构建
+
+项目已配置 GitHub Actions，推送到 `main` 分支时会自动部署到 Cloudflare Workers。
+
+需要在 GitHub 仓库 Settings > Secrets 中配置以下变量：
+- `CF_API_TOKEN` - Cloudflare API Token（需要 Workers 部署权限）
+- `CF_ACCOUNT_ID` - Cloudflare Account ID
 
 ## 开发
 

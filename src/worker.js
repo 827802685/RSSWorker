@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import indexHtml from './html/index.html';
+import settingHtml from './html/setting.html';
 import notFoundHtml from './html/404.html';
 import errorHtml from './html/err.html';
 import robotsTxt from './robots.txt';
@@ -9,18 +10,80 @@ import route from './route';
 
 const app = new Hono();
 
+// --- Helpers ---
+
+// SHA-256 hash using Web Crypto API
+async function hashPassword(password) {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(password + '::rssworker_salt_v1');
+	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Generate random session token
+function generateToken() {
+	const arr = new Uint8Array(32);
+	crypto.getRandomValues(arr);
+	return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Get session from cookie
+function getSessionToken(ctx) {
+	const cookieHeader = ctx.req.header('Cookie') || '';
+	const match = cookieHeader.match(/rss_session=([^;]+)/);
+	return match ? match[1] : null;
+}
+
+// Verify session
+async function verifySession(ctx) {
+	const token = getSessionToken(ctx);
+	if (!token) return null;
+	try {
+		const sessionData = await ctx.env.data.get(`session:${token}`);
+		if (!sessionData) return null;
+		const session = JSON.parse(sessionData);
+		if (Date.now() > session.expires) {
+			await ctx.env.data.delete(`session:${token}`);
+			return null;
+		}
+		return session;
+	} catch (e) {
+		return null;
+	}
+}
+
+// Set session cookie
+function setSessionCookie(ctx, token) {
+	ctx.header(
+		'Set-Cookie',
+		`rss_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`
+	);
+}
+
+// Clear session cookie
+function clearSessionCookie(ctx) {
+	ctx.header('Set-Cookie', `rss_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+}
+
+// --- Routes ---
+
 app.route('/rss', route);
+
+// Original simple homepage
 app.get('/', (ctx) => {
 	return ctx.html(indexHtml);
 });
+
 app.get('/robots.txt', (ctx) => {
 	return ctx.text(robotsTxt);
 });
+
 app.get('/debug', (ctx) => {
 	return ctx.json(ctx.req.raw?.cf);
 });
 
-// API: 返回所有支持的 RSS 订阅源信息
+// Public API: feeds list
 app.get('/api/feeds', (ctx) => {
 	const origin = new URL(ctx.req.url).origin;
 	return ctx.json({
@@ -102,6 +165,158 @@ app.get('/api/feeds', (ctx) => {
 			},
 		],
 	});
+});
+
+// --- Setting / Auth routes ---
+
+// Serve setting page (HTML)
+app.get('/setting', (ctx) => {
+	return ctx.html(settingHtml);
+});
+
+// Auth status check
+app.get('/setting/api/status', async (ctx) => {
+	try {
+		const credExists = await ctx.env.data.get('auth:email');
+		const session = await verifySession(ctx);
+
+		if (session) {
+			return ctx.json({
+				authenticated: true,
+				needsSetup: false,
+				email: session.email,
+			});
+		}
+
+		return ctx.json({
+			authenticated: false,
+			needsSetup: !credExists,
+		});
+	} catch (e) {
+		return ctx.json({ authenticated: false, needsSetup: true });
+	}
+});
+
+// Initial setup - create admin account
+app.post('/setting/api/setup', async (ctx) => {
+	try {
+		const existingEmail = await ctx.env.data.get('auth:email');
+		if (existingEmail) {
+			return ctx.json({ success: false, error: '管理员账号已存在，请直接登录' });
+		}
+
+		const body = await ctx.req.json();
+		const email = (body.email || '').trim().toLowerCase();
+		const password = body.password || '';
+
+		if (!email || !email.includes('@')) {
+			return ctx.json({ success: false, error: '请输入有效邮箱' });
+		}
+		if (password.length < 6) {
+			return ctx.json({ success: false, error: '密码至少6位' });
+		}
+
+		const passwordHash = await hashPassword(password);
+		await ctx.env.data.put('auth:email', email);
+		await ctx.env.data.put('auth:password_hash', passwordHash);
+
+		// Create session
+		const token = generateToken();
+		const session = {
+			email,
+			expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+		};
+		await ctx.env.data.put(`session:${token}`, JSON.stringify(session), {
+			expirationTtl: 7 * 24 * 60 * 60,
+		});
+		setSessionCookie(ctx, token);
+
+		return ctx.json({ success: true, email });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+// Login
+app.post('/setting/api/login', async (ctx) => {
+	try {
+		const body = await ctx.req.json();
+		const email = (body.email || '').trim().toLowerCase();
+		const password = body.password || '';
+
+		const storedEmail = await ctx.env.data.get('auth:email');
+		const storedHash = await ctx.env.data.get('auth:password_hash');
+
+		if (!storedEmail || !storedHash) {
+			return ctx.json({ success: false, error: '系统尚未初始化，请先设置账号' });
+		}
+
+		if (email !== storedEmail) {
+			return ctx.json({ success: false, error: '邮箱或密码错误' });
+		}
+
+		const inputHash = await hashPassword(password);
+		if (inputHash !== storedHash) {
+			return ctx.json({ success: false, error: '邮箱或密码错误' });
+		}
+
+		// Create session
+		const token = generateToken();
+		const session = {
+			email,
+			expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+		};
+		await ctx.env.data.put(`session:${token}`, JSON.stringify(session), {
+			expirationTtl: 7 * 24 * 60 * 60,
+		});
+		setSessionCookie(ctx, token);
+
+		return ctx.json({ success: true, email });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+// Logout
+app.post('/setting/api/logout', async (ctx) => {
+	const token = getSessionToken(ctx);
+	if (token) {
+		await ctx.env.data.delete(`session:${token}`);
+	}
+	clearSessionCookie(ctx);
+	return ctx.json({ success: true });
+});
+
+// Change password (requires auth)
+app.post('/setting/api/change-password', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) {
+			return ctx.json({ success: false, error: '未登录' });
+		}
+
+		const body = await ctx.req.json();
+		const oldPassword = body.oldPassword || '';
+		const newPassword = body.newPassword || '';
+
+		const storedHash = await ctx.env.data.get('auth:password_hash');
+		const oldInputHash = await hashPassword(oldPassword);
+
+		if (oldInputHash !== storedHash) {
+			return ctx.json({ success: false, error: '当前密码错误' });
+		}
+
+		if (newPassword.length < 6) {
+			return ctx.json({ success: false, error: '新密码至少6位' });
+		}
+
+		const newHash = await hashPassword(newPassword);
+		await ctx.env.data.put('auth:password_hash', newHash);
+
+		return ctx.json({ success: true });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
 });
 
 app.notFound((ctx) => {

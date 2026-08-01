@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>RSSWorker - 控制面板</title>
+	<style>
+		:root {
+			--bg: #0f1117;
+			--bg-card: #1a1d28;
+			--bg-input: #252836;
+			--bg-hover: #2a2e3f;
+			--text: #e4e6eb;
+			--text-muted: #8b8fa3;
+			--accent: #6366f1;
+			--accent-hover: #5558e0;
+			--accent-light: rgba(99, 102, 241, 0.15);
+			--border: #2d3142;
+			--success: #22c55e;
+			--warning: #f59e0b;
+			--danger: #ef4444;
+			--radius: 12px;
+			--shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+		}
+		[data-theme="light"] {
+			--bg: #f5f6fa;
+			--bg-card: #ffffff;
+			--bg-input: #f0f1f5;
+			--bg-hover: #e8eaf0;
+			--text: #1a1d28;
+			--text-muted: #6b7280;
+			--accent: #6366f1;
+			--accent-hover: #5558e0;
+			--accent-light: rgba(99, 102, 241, 0.1);
+			--border: #e2e5ec;
+			--shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+		}
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			line-height: 1.6;
+			min-height: 100vh;
+			transition: background 0.3s, color 0.3s;
+		}
+		.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+		/* Auth pages */
+		.auth-wrapper {
+			min-height: 100vh;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 20px;
+		}
+		.auth-card {
+			background: var(--bg-card);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			padding: 40px;
+			max-width: 420px;
+			width: 100%;
+			box-shadow: var(--shadow);
+		}
+		.auth-logo {
+			text-align: center;
+			margin-bottom: 28px;
+		}
+		.auth-logo .icon {
+			width: 56px; height: 56px;
+			background: linear-gradient(135deg, var(--accent), #8b5cf6);
+			border-radius: 16px;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 28px;
+			margin-bottom: 16px;
+			box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+		}
+		.auth-logo h1 { font-size: 24px; font-weight: 700; }
+		.auth-logo p { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+		.auth-form { display: flex; flex-direction: column; gap: 16px; }
+		.auth-form .input-group { display: flex; flex-direction: column; gap: 6px; }
+		.auth-form label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+		.auth-form input {
+			padding: 12px 16px;
+			background: var(--bg-input);
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			color: var(--text);
+			font-size: 15px;
+			font-family: inherit;
+			outline: none;
+			transition: all 0.2s;
+		}
+		.auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+		.auth-form input::placeholder { color: var(--text-muted); opacity: 0.5; }
+		.btn {
+			padding: 12px 20px;
+			border-radius: 8px;
+			border: none;
+			font-size: 15px;
+			font-weight: 500;
+			cursor: pointer;
+			transition: all 0.2s;
+			font-family: inherit;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+		}
+		.btn-primary { background: var(--accent); color: #fff; }
+		.btn-primary:hover { background: var(--accent-hover); }
+		.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+		.btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+		.btn-secondary:hover { background: var(--bg-hover); }
+		.btn-danger { background: var(--danger); color: #fff; }
+		.btn-danger:hover { opacity: 0.85; }
+		.auth-error {
+			padding: 10px 14px;
+			background: rgba(239, 68, 68, 0.1);
+			border: 1px solid rgba(239, 68, 68, 0.2);
+			border-radius: 8px;
+			color: var(--danger);
+			font-size: 13px;
+			display: none;
+		}
+		.auth-error.show { display: block; }
+		.auth-hint { text-align: center; font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+		.auth-hint a { color: var(--accent); text-decoration: none; cursor: pointer; }
+		.auth-hint a:hover { text-decoration: underline; }
+
+		/* Header */
+		header {
+			background: var(--bg-card);
+			border-bottom: 1px solid var(--border);
+			padding: 16px 0;
+			position: sticky;
+			top: 0;
+			z-index: 100;
+			backdrop-filter: blur(12px);
+		}
+		.header-content { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+		.logo { display: flex; align-items: center; gap: 12px; }
+		.logo-icon {
+			width: 40px; height: 40px;
+			background: linear-gradient(135deg, var(--accent), #8b5cf6);
+			border-radius: 10px;
+			display: flex; align-items: center; justify-content: center;
+			font-size: 22px;
+		}
+		.logo h1 { font-size: 20px; font-weight: 700; }
+		.header-actions { display: flex; align-items: center; gap: 10px; }
+		.icon-btn {
+			width: 38px; height: 38px;
+			border-radius: 50%;
+			border: 1px solid var(--border);
+			background: var(--bg-input);
+			color: var(--text);
+			cursor: pointer;
+			font-size: 16px;
+			display: flex; align-items: center; justify-content: center;
+			transition: all 0.2s;
+		}
+		.icon-btn:hover { background: var(--bg-hover); transform: scale(1.05); }
+
+		/* Dashboard */
+		.dashboard { display: none; }
+		.dashboard.show { display: block; }
+		.hero { text-align: center; padding: 40px 20px 30px; }
+		.hero h2 { font-size: 30px; font-weight: 800; margin-bottom: 8px; }
+		.hero h2 span { background: linear-gradient(135deg, var(--accent), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+		.hero p { font-size: 15px; color: var(--text-muted); }
+		.hero-stats { display: flex; justify-content: center; gap: 32px; margin-top: 24px; flex-wrap: wrap; }
+		.stat { text-align: center; }
+		.stat-num { font-size: 24px; font-weight: 700; color: var(--accent); }
+		.stat-label { font-size: 12px; color: var(--text-muted); }
+
+		.section { padding: 20px 0 50px; }
+		.section-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+		.section-title::before { content: ''; width: 4px; height: 22px; background: var(--accent); border-radius: 2px; }
+		.tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+		.tab {
+			padding: 10px 20px;
+			font-size: 14px;
+			font-weight: 500;
+			color: var(--text-muted);
+			cursor: pointer;
+			border: none;
+			background: none;
+			border-bottom: 2px solid transparent;
+			transition: all 0.2s;
+			font-family: inherit;
+		}
+		.tab:hover { color: var(--text); }
+		.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+		.tab-content { display: none; }
+		.tab-content.active { display: block; }
+
+		.feeds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+		.feed-card {
+			background: var(--bg-card);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			padding: 20px;
+			transition: all 0.2s;
+			display: flex;
+			flex-direction: column;
+			gap: 14px;
+		}
+		.feed-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+		.feed-header { display: flex; align-items: center; gap: 10px; }
+		.feed-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--accent-light); }
+		.feed-name { font-size: 16px; font-weight: 600; }
+		.feed-platform { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+		.feed-desc { font-size: 13px; color: var(--text-muted); }
+		.env-hint { font-size: 12px; padding: 6px 10px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; color: var(--warning); }
+		.input-group { display: flex; flex-direction: column; gap: 6px; }
+		.input-label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+		.input-field {
+			padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border);
+			border-radius: 8px; color: var(--text); font-size: 14px; font-family: inherit;
+			outline: none; transition: all 0.2s;
+		}
+		.input-field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+		.input-field::placeholder { color: var(--text-muted); opacity: 0.5; }
+		.url-display {
+			padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border);
+			border-radius: 8px; font-size: 13px; font-family: 'SF Mono', 'Fira Code', monospace;
+			word-break: break-all; min-height: 40px; display: flex; align-items: center; color: var(--text-muted);
+		}
+		.url-display.active { color: var(--accent); border-color: var(--accent); }
+		.btn-group { display: flex; gap: 8px; }
+		.btn-sm { padding: 8px 14px; font-size: 13px; flex: 1; }
+		.feed-help { font-size: 12px; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+		.feed-help:hover { text-decoration: underline; }
+
+		/* Settings */
+		.settings-card {
+			background: var(--bg-card);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			padding: 24px;
+			margin-bottom: 16px;
+		}
+		.settings-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+		.settings-form { display: flex; flex-direction: column; gap: 14px; max-width: 500px; }
+		.settings-form .row { display: flex; gap: 10px; }
+		.settings-form .row > * { flex: 1; }
+		.code-block {
+			background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+			padding: 10px 14px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px;
+			margin-top: 8px; overflow-x: auto; color: var(--accent);
+		}
+		.info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+		.info-row:last-child { border-bottom: none; }
+		.info-row .label { color: var(--text-muted); }
+		.info-row .value { font-weight: 500; }
+
+		/* Toast */
+		.toast {
+			position: fixed; bottom: 24px; left: 50%;
+			transform: translateX(-50%) translateY(100px);
+			background: var(--bg-card); border: 1px solid var(--border);
+			border-radius: var(--radius); padding: 10px 20px; box-shadow: var(--shadow);
+			font-size: 14px; z-index: 9999; opacity: 0; transition: all 0.3s;
+			display: flex; align-items: center; gap: 8px;
+		}
+		.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+		.toast.success { border-color: var(--success); }
+		.toast.success .toast-icon { color: var(--success); }
+		.toast.error { border-color: var(--danger); }
+		.toast.error .toast-icon { color: var(--danger); }
+
+		.loading { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+		@keyframes spin { to { transform: rotate(360deg); } }
+
+		.loading-screen { text-align: center; padding: 80px 20px; }
+		footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+		footer a { color: var(--accent); text-decoration: none; }
+
+		@media (max-width: 640px) {
+			.hero h2 { font-size: 22px; }
+			.feeds-grid { grid-template-columns: 1fr; }
+			.auth-card { padding: 28px 20px; }
+		}
+	</style>
+</head>
+<body>
+	<!-- Auth View -->
+	<div class="auth-wrapper" id="auth-view">
+		<div class="auth-card">
+			<div class="auth-logo">
+				<div class="icon">📡</div>
+				<h1>RSSWorker</h1>
+				<p id="auth-subtitle">登录控制面板</p>
+			</div>
+			<div class="auth-error" id="auth-error"></div>
+			<!-- Login Form -->
+			<form class="auth-form" id="login-form" onsubmit="return false;">
+				<div class="input-group">
+					<label>邮箱</label>
+					<input type="email" id="login-email" placeholder="请输入邮箱" autocomplete="email" />
+				</div>
+				<div class="input-group">
+					<label>密码</label>
+					<input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password" />
+				</div>
+				<button class="btn btn-primary" id="login-btn" onclick="doLogin()">登录</button>
+			</form>
+			<!-- Setup Form -->
+			<form class="auth-form" id="setup-form" style="display:none;" onsubmit="return false;">
+				<p style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">首次使用，请设置管理员账号</p>
+				<div class="input-group">
+					<label>邮箱</label>
+					<input type="email" id="setup-email" placeholder="设置登录邮箱" autocomplete="email" />
+				</div>
+				<div class="input-group">
+					<label>密码</label>
+					<input type="password" id="setup-password" placeholder="设置登录密码（至少6位）" autocomplete="new-password" />
+				</div>
+				<div class="input-group">
+					<label>确认密码</label>
+					<input type="password" id="setup-password2" placeholder="再次输入密码" autocomplete="new-password" />
+				</div>
+				<button class="btn btn-primary" id="setup-btn" onclick="doSetup()">创建账号</button>
+			</form>
+			<div class="auth-hint">
+				<a href="/">← 返回首页</a>
+			</div>
+		</div>
+	</div>
+
+	<!-- Dashboard View -->
+	<div class="dashboard" id="dashboard-view">
+		<header>
+			<div class="container">
+				<div class="header-content">
+					<div class="logo">
+						<div class="logo-icon">📡</div>
+						<h1>RSSWorker 控制面板</h1>
+					</div>
+					<div class="header-actions">
+						<button class="icon-btn" onclick="toggleTheme()" title="切换主题" id="theme-btn">🌙</button>
+						<button class="icon-btn" onclick="doLogout()" title="退出登录">🚪</button>
+					</div>
+				</div>
+			</div>
+		</header>
+
+		<div class="hero">
+			<div class="container">
+				<h2>多平台 <span>RSS 订阅</span> 管理面板</h2>
+				<p>支持 B站、抖音、微博、小红书、Telegram 等平台</p>
+				<div class="hero-stats">
+					<div class="stat"><div class="stat-num" id="stat-platforms">0</div><div class="stat-label">支持平台</div></div>
+					<div class="stat"><div class="stat-num" id="stat-feeds">0</div><div class="stat-label">订阅源</div></div>
+					<div class="stat"><div class="stat-num">KV</div><div class="stat-label">已绑定存储</div></div>
+				</div>
+			</div>
+		</div>
+
+		<div class="section">
+			<div class="container">
+				<div class="tabs">
+					<button class="tab active" onclick="switchTab('feeds', this)">RSS 订阅源</button>
+					<button class="tab" onclick="switchTab('settings', this)">账号设置</button>
+					<button class="tab" onclick="switchTab('env', this)">环境变量</button>
+					<button class="tab" onclick="switchTab('guide', this)">使用指南</button>
+				</div>
+
+				<!-- Feeds Tab -->
+				<div class="tab-content active" id="tab-feeds">
+					<div class="feeds-grid" id="feeds-grid">
+						<div style="text-align:center;padding:40px;grid-column:1/-1;">
+							<div class="loading"></div>
+							<p style="margin-top:12px;color:var(--text-muted);">加载中...</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Settings Tab -->
+				<div class="tab-content" id="tab-settings">
+					<div class="settings-card">
+						<h3>账号信息</h3>
+						<div class="info-row"><span class="label">当前登录邮箱</span><span class="value" id="current-email">-</span></div>
+						<div class="info-row"><span class="label">登录状态</span><span class="value" style="color:var(--success)">已登录</span></div>
+					</div>
+					<div class="settings-card">
+						<h3>修改密码</h3>
+						<div class="settings-form">
+							<div class="input-group">
+								<label class="input-label">当前密码</label>
+								<input class="input-field" type="password" id="change-old-pwd" placeholder="输入当前密码" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">新密码</label>
+								<input class="input-field" type="password" id="change-new-pwd" placeholder="输入新密码（至少6位）" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">确认新密码</label>
+								<input class="input-field" type="password" id="change-new-pwd2" placeholder="再次输入新密码" />
+							</div>
+							<button class="btn btn-primary" style="align-self:flex-start;" onclick="changePassword()">修改密码</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- Env Tab -->
+				<div class="tab-content" id="tab-env">
+					<div class="settings-card">
+						<h3>平台 Cookie 配置</h3>
+						<p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">部分平台需要配置 Cookie 才能正常获取数据。请通过 wrangler CLI 设置：</p>
+						<div class="info-row"><span class="label">微博 Cookie</span><span class="value"><code>wrangler secret put WEIBO_COOKIE</code></span></div>
+						<div class="info-row"><span class="label">抖音 Cookie</span><span class="value"><code>wrangler secret put DOUYIN_COOKIE</code></span></div>
+					</div>
+					<div class="settings-card">
+						<h3>API 接口</h3>
+						<p style="font-size:14px;color:var(--text-muted);">所有订阅源信息可通过 API 获取：</p>
+						<div class="code-block">GET /api/feeds</div>
+						<p style="font-size:14px;color:var(--text-muted);margin-top:12px;">查看认证状态：</p>
+						<div class="code-block">GET /setting/api/status</div>
+					</div>
+				</div>
+
+				<!-- Guide Tab -->
+				<div class="tab-content" id="tab-guide">
+					<div class="feeds-grid">
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">1. 选择平台</h3><p style="font-size:14px;color:var(--text-muted);">在「RSS 订阅源」标签页中选择你需要订阅的平台。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">2. 输入用户ID</h3><p style="font-size:14px;color:var(--text-muted);">在输入框中填入目标用户的ID，链接会自动生成。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">3. 复制链接</h3><p style="font-size:14px;color:var(--text-muted);">点击「复制链接」获取RSS订阅地址。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">4. 添加到阅读器</h3><p style="font-size:14px;color:var(--text-muted);">将链接添加到RSS阅读器（Feedly、Folo 等）即可。</p></div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<footer>
+			<div class="container">
+				<p>RSSWorker · Powered by <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener">Cloudflare Workers</a></p>
+			</div>
+		</footer>
+	</div>
+
+	<div class="toast" id="toast"><span class="toast-icon"></span><span class="toast-msg"></span></div>
+
+	<script>
+		const authView = document.getElementById('auth-view');
+		const dashboardView = document.getElementById('dashboard-view');
+		const toast = document.getElementById('toast');
+
+		// Theme
+		function toggleTheme() {
+			const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+			const next = cur === 'light' ? 'dark' : 'light';
+			document.documentElement.setAttribute('data-theme', next);
+			localStorage.setItem('setting-theme', next);
+			document.getElementById('theme-btn').textContent = next === 'light' ? '☀️' : '🌙';
+		}
+		(function(){ const t = localStorage.getItem('setting-theme') || 'dark'; document.documentElement.setAttribute('data-theme', t); })();
+
+		// Toast
+		function showToast(msg, type = 'success') {
+			toast.className = 'toast show ' + type;
+			toast.querySelector('.toast-icon').textContent = type === 'success' ? '✓' : '✗';
+			toast.querySelector('.toast-msg').textContent = msg;
+			setTimeout(() => { toast.className = 'toast'; }, 2500);
+		}
+
+		function showAuthError(msg) {
+			const el = document.getElementById('auth-error');
+			el.textContent = msg;
+			el.classList.add('show');
+		}
+		function hideAuthError() { document.getElementById('auth-error').classList.remove('show'); }
+
+		// Tab switching
+		function switchTab(name, btn) {
+			document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+			document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+			btn.classList.add('active');
+			document.getElementById('tab-' + name).classList.add('active');
+		}
+
+		// Check auth status
+		async function checkAuth() {
+			try {
+				const res = await fetch('/setting/api/status');
+				const data = await res.json();
+				if (data.authenticated) {
+					showDashboard(data.email);
+				} else if (data.needsSetup) {
+					showSetup();
+				} else {
+					showLogin();
+				}
+			} catch (e) {
+				showLogin();
+			}
+		}
+
+		function showLogin() {
+			authView.style.display = 'flex';
+			dashboardView.classList.remove('show');
+			document.getElementById('login-form').style.display = 'flex';
+			document.getElementById('setup-form').style.display = 'none';
+			document.getElementById('auth-subtitle').textContent = '登录控制面板';
+		}
+
+		function showSetup() {
+			authView.style.display = 'flex';
+			dashboardView.classList.remove('show');
+			document.getElementById('login-form').style.display = 'none';
+			document.getElementById('setup-form').style.display = 'flex';
+			document.getElementById('auth-subtitle').textContent = '初始设置';
+		}
+
+		function showDashboard(email) {
+			authView.style.display = 'none';
+			dashboardView.classList.add('show');
+			if (email) document.getElementById('current-email').textContent = email;
+			loadFeeds();
+		}
+
+		// Login
+		async function doLogin() {
+			hideAuthError();
+			const email = document.getElementById('login-email').value.trim();
+			const password = document.getElementById('login-password').value;
+			if (!email || !password) { showAuthError('请输入邮箱和密码'); return; }
+			const btn = document.getElementById('login-btn');
+			btn.disabled = true; btn.textContent = '登录中...';
+			try {
+				const res = await fetch('/setting/api/login', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ email, password }),
+				});
+				const data = await res.json();
+				if (data.success) {
+					showToast('登录成功');
+					showDashboard(data.email);
+				} else {
+					showAuthError(data.error || '登录失败');
+				}
+			} catch (e) {
+				showAuthError('网络错误: ' + e.message);
+			}
+			btn.disabled = false; btn.textContent = '登录';
+		}
+
+		// Setup
+		async function doSetup() {
+			hideAuthError();
+			const email = document.getElementById('setup-email').value.trim();
+			const password = document.getElementById('setup-password').value;
+			const password2 = document.getElementById('setup-password2').value;
+			if (!email || !email.includes('@')) { showAuthError('请输入有效邮箱'); return; }
+			if (password.length < 6) { showAuthError('密码至少6位'); return; }
+			if (password !== password2) { showAuthError('两次密码不一致'); return; }
+			const btn = document.getElementById('setup-btn');
+			btn.disabled = true; btn.textContent = '创建中...';
+			try {
+				const res = await fetch('/setting/api/setup', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ email, password }),
+				});
+				const data = await res.json();
+				if (data.success) {
+					showToast('账号创建成功');
+					showDashboard(data.email);
+				} else {
+					showAuthError(data.error || '创建失败');
+				}
+			} catch (e) {
+				showAuthError('网络错误: ' + e.message);
+			}
+			btn.disabled = false; btn.textContent = '创建账号';
+		}
+
+		// Logout
+		async function doLogout() {
+			try { await fetch('/setting/api/logout', { method: 'POST' }); } catch (e) {}
+			showLogin();
+			document.getElementById('login-email').value = '';
+			document.getElementById('login-password').value = '';
+		}
+
+		// Change password
+		async function changePassword() {
+			const oldPwd = document.getElementById('change-old-pwd').value;
+			const newPwd = document.getElementById('change-new-pwd').value;
+			const newPwd2 = document.getElementById('change-new-pwd2').value;
+			if (!oldPwd) { showToast('请输入当前密码', 'error'); return; }
+			if (newPwd.length < 6) { showToast('新密码至少6位', 'error'); return; }
+			if (newPwd !== newPwd2) { showToast('两次密码不一致', 'error'); return; }
+			try {
+				const res = await fetch('/setting/api/change-password', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd }),
+				});
+				const data = await res.json();
+				if (data.success) {
+					showToast('密码修改成功');
+					document.getElementById('change-old-pwd').value = '';
+					document.getElementById('change-new-pwd').value = '';
+					document.getElementById('change-new-pwd2').value = '';
+				} else {
+					showToast(data.error || '修改失败', 'error');
+				}
+			} catch (e) {
+				showToast('网络错误', 'error');
+			}
+		}
+
+		// Feeds
+		let origin = window.location.origin;
+		function generateUrl(route, param) {
+			if (!param) return '';
+			return origin + route.replace(':uid', encodeURIComponent(param)).replace(':username', encodeURIComponent(param));
+		}
+
+		async function loadFeeds() {
+			try {
+				const res = await fetch('/api/feeds');
+				const data = await res.json();
+				origin = data.origin || window.location.origin;
+				renderFeeds(data.feeds);
+			} catch (e) {
+				document.getElementById('feeds-grid').innerHTML = '<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--danger);">加载失败</div>';
+			}
+		}
+
+		function renderFeeds(feeds) {
+			document.getElementById('stat-feeds').textContent = feeds.length;
+			const platforms = new Set(feeds.map(f => f.platform));
+			document.getElementById('stat-platforms').textContent = platforms.size;
+			document.getElementById('feeds-grid').innerHTML = feeds.map((feed, i) => `
+				<div class="feed-card">
+					<div class="feed-header">
+						<div class="feed-icon">${feed.icon}</div>
+						<div><div class="feed-name">${feed.name}</div><div class="feed-platform">${feed.platform}</div></div>
+					</div>
+					<div class="feed-desc">${feed.paramDescription}</div>
+					${feed.envHint ? `<div class="env-hint">⚠️ ${feed.envHint}</div>` : ''}
+					<div class="input-group">
+						<label class="input-label">${feed.paramLabel}</label>
+						<input class="input-field" type="text" placeholder="${feed.paramPlaceholder}" data-route="${feed.route}" data-index="${i}" oninput="updateUrl(this)" />
+					</div>
+					<div class="url-display" id="url-${i}">订阅链接将在此显示...</div>
+					<div class="btn-group">
+						<button class="btn btn-secondary btn-sm" id="copy-${i}" disabled onclick="copyUrl(${i})">复制链接</button>
+						<button class="btn btn-primary btn-sm" id="open-${i}" disabled onclick="openUrl(${i})">打开预览</button>
+					</div>
+					${feed.helpUrl ? `<a href="${feed.helpUrl}" class="feed-help" target="_blank" rel="noopener">📋 如何获取ID？→</a>` : ''}
+				</div>`).join('');
+		}
+
+		function updateUrl(input) {
+			const idx = input.dataset.index;
+			const route = input.dataset.route;
+			const value = input.value.trim();
+			const urlEl = document.getElementById('url-' + idx);
+			const copyBtn = document.getElementById('copy-' + idx);
+			const openBtn = document.getElementById('open-' + idx);
+			if (value) {
+				const url = generateUrl(route, value);
+				urlEl.textContent = url;
+				urlEl.classList.add('active');
+				copyBtn.disabled = false;
+				openBtn.disabled = false;
+				urlEl.dataset.url = url;
+			} else {
+				urlEl.textContent = '订阅链接将在此显示...';
+				urlEl.classList.remove('active');
+				copyBtn.disabled = true;
+				openBtn.disabled = true;
+				delete urlEl.dataset.url;
+			}
+		}
+
+		async function copyUrl(idx) {
+			const url = document.getElementById('url-' + idx).dataset.url;
+			if (!url) return;
+			try { await navigator.clipboard.writeText(url); showToast('已复制到剪贴板'); }
+			catch (e) { showToast('复制失败', 'error'); }
+		}
+
+		function openUrl(idx) {
+			const url = document.getElementById('url-' + idx).dataset.url;
+			if (url) window.open(url, '_blank');
+		}
+
+		// Enter key support
+		document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+		document.getElementById('setup-password2').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
+
+		// Init
+		checkAuth();
+	</script>
+</body>
+</html>

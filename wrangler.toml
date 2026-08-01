@@ -1,7 +1,11 @@
-name = "rss-worker"
+name = "rssworker"
 main = "src/worker.js"
 compatibility_date = "2026-07-25"
 compatibility_flags = ["nodejs_compat"]
 
 [observability]
 enabled = true
+
+[[kv_namespaces]]
+binding = "data"
+id = "02d9e36f6a8a42c0add773ba0b9dda87"

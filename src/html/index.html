@@ -1,11 +1,178 @@
 <!DOCTYPE html>
-<html>
-	<head>
-		<meta charset="utf-8" />
-		<title>RSSWorker - Made with ❤</title>
-	</head>
-	<body>
-		<h1>RSSWorker - Made with ❤</h1>
-		<p>See <a href="https://github.com/827802685/RSSWorker">GitHub</a> for more information.</p>
-	</body>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>RSSWorker - 我的订阅</title>
+	<style>
+		:root {
+			--bg: #0f1117;
+			--bg-card: #1a1d28;
+			--bg-input: #252836;
+			--bg-hover: #2a2e3f;
+			--text: #e4e6eb;
+			--text-muted: #8b8fa3;
+			--accent: #6366f1;
+			--accent-hover: #5558e0;
+			--accent-light: rgba(99, 102, 241, 0.15);
+			--border: #2d3142;
+			--success: #22c55e;
+			--danger: #ef4444;
+			--radius: 12px;
+			--shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+		}
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', sans-serif;
+			background: var(--bg);
+			color: var(--text);
+			line-height: 1.6;
+			min-height: 100vh;
+		}
+		.container { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+		header {
+			background: var(--bg-card);
+			border-bottom: 1px solid var(--border);
+			padding: 16px 0;
+			position: sticky;
+			top: 0;
+			z-index: 100;
+			backdrop-filter: blur(12px);
+		}
+		.header-content { display: flex; align-items: center; justify-content: space-between; }
+		.logo { display: flex; align-items: center; gap: 12px; }
+		.logo-icon {
+			width: 40px; height: 40px;
+			background: linear-gradient(135deg, var(--accent), #8b5cf6);
+			border-radius: 10px;
+			display: flex; align-items: center; justify-content: center;
+			font-size: 22px;
+		}
+		.logo h1 { font-size: 20px; font-weight: 700; }
+		.header-actions { display: flex; align-items: center; gap: 10px; }
+		.btn {
+			padding: 10px 18px;
+			border-radius: 8px;
+			border: none;
+			font-size: 14px;
+			font-weight: 500;
+			cursor: pointer;
+			transition: all 0.2s;
+			font-family: inherit;
+			text-decoration: none;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+		}
+		.btn-primary { background: var(--accent); color: #fff; }
+		.btn-primary:hover { background: var(--accent-hover); }
+		.btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+		.btn-secondary:hover { background: var(--bg-hover); }
+		.btn-sm { padding: 8px 14px; font-size: 13px; }
+		.hero { text-align: center; padding: 48px 20px 32px; }
+		.hero h2 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+		.hero h2 span { background: linear-gradient(135deg, var(--accent), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+		.hero p { font-size: 15px; color: var(--text-muted); }
+		.hero-stats { display: flex; justify-content: center; gap: 32px; margin-top: 20px; }
+		.stat { text-align: center; }
+		.stat-num { font-size: 24px; font-weight: 700; color: var(--accent); }
+		.stat-label { font-size: 12px; color: var(--text-muted); }
+		.section { padding: 0 0 60px; }
+		.section-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+		.section-title::before { content: ''; width: 4px; height: 22px; background: var(--accent); border-radius: 2px; }
+		.subs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+		.sub-card {
+			background: var(--bg-card);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			padding: 20px;
+			transition: all 0.2s;
+			display: flex;
+			flex-direction: column;
+			gap: 14px;
+		}
+		.sub-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+		.sub-header { display: flex; align-items: center; gap: 10px; }
+		.sub-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--accent-light); }
+		.sub-name { font-size: 16px; font-weight: 600; }
+		.sub-platform { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+		.sub-url {
+			padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border);
+			border-radius: 8px; font-size: 13px; font-family: 'SF Mono', 'Fira Code', monospace;
+			word-break: break-all; color: var(--text-muted);
+		}
+		.sub-actions { display: flex; gap: 8px; }
+		.sub-actions .btn { flex: 1; }
+		.toast {
+			position: fixed; bottom: 24px; left: 50%;
+			transform: translateX(-50%) translateY(100px);
+			background: var(--bg-card); border: 1px solid var(--border);
+			border-radius: var(--radius); padding: 10px 20px; box-shadow: var(--shadow);
+			font-size: 14px; z-index: 9999; opacity: 0; transition: all 0.3s;
+		}
+		.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+		footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+		footer a { color: var(--accent); text-decoration: none; }
+		@media (max-width: 640px) {
+			.hero h2 { font-size: 22px; }
+			.subs-grid { grid-template-columns: 1fr; }
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<div class="container">
+			<div class="header-content">
+				<div class="logo">
+					<div class="logo-icon">📡</div>
+					<h1>RSSWorker</h1>
+				</div>
+				<div class="header-actions">
+					<a href="/setting" class="btn btn-secondary btn-sm">⚙️ 管理订阅</a>
+				</div>
+			</div>
+		</div>
+	</header>
+
+	<div class="hero">
+		<div class="container">
+			<h2>我的 <span>RSS 订阅</span></h2>
+			<p>所有已保存的 RSS 订阅源</p>
+			<div class="hero-stats">
+				<div class="stat"><div class="stat-num">{{SUB_COUNT}}</div><div class="stat-label">订阅数</div></div>
+			</div>
+		</div>
+	</div>
+
+	<div class="section">
+		<div class="container">
+			<div class="section-title">订阅列表</div>
+			{{SUBSCRIPTIONS}}
+		</div>
+	</div>
+
+	<footer>
+		<div class="container">
+			<p>RSSWorker · Powered by <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener">Cloudflare Workers</a></p>
+		</div>
+	</footer>
+
+	<div class="toast" id="toast"></div>
+	<script>
+		function copyUrl(url) {
+			navigator.clipboard.writeText(url).then(() => {
+				const t = document.getElementById('toast');
+				t.textContent = '已复制到剪贴板';
+				t.className = 'toast show';
+				setTimeout(() => { t.className = 'toast'; }, 2000);
+			}).catch(() => {
+				const t = document.getElementById('toast');
+				t.textContent = '复制失败';
+				t.className = 'toast show';
+				setTimeout(() => { t.className = 'toast'; }, 2000);
+			});
+		}
+	</script>
+</body>
 </html>

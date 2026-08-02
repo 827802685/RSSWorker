@@ -354,9 +354,8 @@
 				<h2>多平台 <span>RSS 订阅</span> 管理面板</h2>
 				<p>支持 B站、抖音、微博、小红书、Telegram 等平台</p>
 				<div class="hero-stats">
-					<div class="stat"><div class="stat-num" id="stat-platforms">0</div><div class="stat-label">支持平台</div></div>
-					<div class="stat"><div class="stat-num" id="stat-feeds">0</div><div class="stat-label">订阅源</div></div>
-					<div class="stat"><div class="stat-num">KV</div><div class="stat-label">已绑定存储</div></div>
+					<div class="stat"><div class="stat-num" id="stat-subs">0</div><div class="stat-label">已保存订阅</div></div>
+					<div class="stat"><div class="stat-num">6</div><div class="stat-label">支持平台</div></div>
 				</div>
 			</div>
 		</div>
@@ -364,14 +363,24 @@
 		<div class="section">
 			<div class="container">
 				<div class="tabs">
-					<button class="tab active" onclick="switchTab('feeds', this)">RSS 订阅源</button>
+					<button class="tab active" onclick="switchTab('subs', this)">我的订阅</button>
+					<button class="tab" onclick="switchTab('feeds', this)">添加订阅</button>
 					<button class="tab" onclick="switchTab('settings', this)">账号设置</button>
-					<button class="tab" onclick="switchTab('env', this)">环境变量</button>
 					<button class="tab" onclick="switchTab('guide', this)">使用指南</button>
 				</div>
 
+				<!-- My Subscriptions Tab -->
+				<div class="tab-content active" id="tab-subs">
+					<div class="feeds-grid" id="subs-grid">
+						<div style="text-align:center;padding:40px;grid-column:1/-1;">
+							<div class="loading"></div>
+							<p style="margin-top:12px;color:var(--text-muted);">加载中...</p>
+						</div>
+					</div>
+				</div>
+
 				<!-- Feeds Tab -->
-				<div class="tab-content active" id="tab-feeds">
+				<div class="tab-content" id="tab-feeds">
 					<div class="feeds-grid" id="feeds-grid">
 						<div style="text-align:center;padding:40px;grid-column:1/-1;">
 							<div class="loading"></div>
@@ -407,30 +416,13 @@
 					</div>
 				</div>
 
-				<!-- Env Tab -->
-				<div class="tab-content" id="tab-env">
-					<div class="settings-card">
-						<h3>平台 Cookie 配置</h3>
-						<p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">部分平台需要配置 Cookie 才能正常获取数据。请通过 wrangler CLI 设置：</p>
-						<div class="info-row"><span class="label">微博 Cookie</span><span class="value"><code>wrangler secret put WEIBO_COOKIE</code></span></div>
-						<div class="info-row"><span class="label">抖音 Cookie</span><span class="value"><code>wrangler secret put DOUYIN_COOKIE</code></span></div>
-					</div>
-					<div class="settings-card">
-						<h3>API 接口</h3>
-						<p style="font-size:14px;color:var(--text-muted);">所有订阅源信息可通过 API 获取：</p>
-						<div class="code-block">GET /api/feeds</div>
-						<p style="font-size:14px;color:var(--text-muted);margin-top:12px;">查看认证状态：</p>
-						<div class="code-block">GET /setting/api/status</div>
-					</div>
-				</div>
-
 				<!-- Guide Tab -->
 				<div class="tab-content" id="tab-guide">
 					<div class="feeds-grid">
-						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">1. 选择平台</h3><p style="font-size:14px;color:var(--text-muted);">在「RSS 订阅源」标签页中选择你需要订阅的平台。</p></div>
-						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">2. 输入用户ID</h3><p style="font-size:14px;color:var(--text-muted);">在输入框中填入目标用户的ID，链接会自动生成。</p></div>
-						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">3. 复制链接</h3><p style="font-size:14px;color:var(--text-muted);">点击「复制链接」获取RSS订阅地址。</p></div>
-						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">4. 添加到阅读器</h3><p style="font-size:14px;color:var(--text-muted);">将链接添加到RSS阅读器（Feedly、Folo 等）即可。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">1. 添加订阅</h3><p style="font-size:14px;color:var(--text-muted);">在「添加订阅」标签页中选择平台，输入用户ID和自定义名称，点击「保存订阅」。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">2. 管理订阅</h3><p style="font-size:14px;color:var(--text-muted);">在「我的订阅」标签页中查看、复制或删除已保存的订阅。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">3. 查看首页</h3><p style="font-size:14px;color:var(--text-muted);">访问首页即可看到所有已保存的 RSS 订阅源列表。</p></div>
+						<div class="feed-card"><h3 style="font-size:16px;font-weight:600;">4. 添加到阅读器</h3><p style="font-size:14px;color:var(--text-muted);">将 RSS 链接添加到阅读器（Feedly、Folo 等）即可订阅。</p></div>
 					</div>
 				</div>
 			</div>
@@ -481,6 +473,9 @@
 			document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 			btn.classList.add('active');
 			document.getElementById('tab-' + name).classList.add('active');
+			if (name === 'subs') {
+				loadSubscriptions();
+			}
 		}
 
 		// Check auth status
@@ -520,6 +515,7 @@
 			authView.style.display = 'none';
 			dashboardView.classList.add('show');
 			if (email) document.getElementById('current-email').textContent = email;
+			loadSubscriptions();
 			loadFeeds();
 		}
 
@@ -635,9 +631,6 @@
 		}
 
 		function renderFeeds(feeds) {
-			document.getElementById('stat-feeds').textContent = feeds.length;
-			const platforms = new Set(feeds.map(f => f.platform));
-			document.getElementById('stat-platforms').textContent = platforms.size;
 			document.getElementById('feeds-grid').innerHTML = feeds.map((feed, i) => `
 				<div class="feed-card">
 					<div class="feed-header">
@@ -650,13 +643,19 @@
 						<label class="input-label">${feed.paramLabel}</label>
 						<input class="input-field" type="text" placeholder="${feed.paramPlaceholder}" data-route="${feed.route}" data-index="${i}" oninput="updateUrl(this)" />
 					</div>
+					<div class="input-group">
+						<label class="input-label">自定义名称（可选）</label>
+						<input class="input-field" type="text" placeholder="如: 某某的B站动态" id="title-${i}" />
+					</div>
 					<div class="url-display" id="url-${i}">订阅链接将在此显示...</div>
 					<div class="btn-group">
 						<button class="btn btn-secondary btn-sm" id="copy-${i}" disabled onclick="copyUrl(${i})">复制链接</button>
-						<button class="btn btn-primary btn-sm" id="open-${i}" disabled onclick="openUrl(${i})">打开预览</button>
+						<button class="btn btn-primary btn-sm" id="save-${i}" disabled onclick="saveSubscription(${i})">保存订阅</button>
 					</div>
 					${feed.helpUrl ? `<a href="${feed.helpUrl}" class="feed-help" target="_blank" rel="noopener">📋 如何获取ID？→</a>` : ''}
 				</div>`).join('');
+			// Store feed data for saveSubscription
+			window._feedTypes = feeds;
 		}
 
 		function updateUrl(input) {
@@ -665,19 +664,19 @@
 			const value = input.value.trim();
 			const urlEl = document.getElementById('url-' + idx);
 			const copyBtn = document.getElementById('copy-' + idx);
-			const openBtn = document.getElementById('open-' + idx);
+			const saveBtn = document.getElementById('save-' + idx);
 			if (value) {
 				const url = generateUrl(route, value);
 				urlEl.textContent = url;
 				urlEl.classList.add('active');
 				copyBtn.disabled = false;
-				openBtn.disabled = false;
+				saveBtn.disabled = false;
 				urlEl.dataset.url = url;
 			} else {
 				urlEl.textContent = '订阅链接将在此显示...';
 				urlEl.classList.remove('active');
 				copyBtn.disabled = true;
-				openBtn.disabled = true;
+				saveBtn.disabled = true;
 				delete urlEl.dataset.url;
 			}
 		}
@@ -689,9 +688,106 @@
 			catch (e) { showToast('复制失败', 'error'); }
 		}
 
-		function openUrl(idx) {
-			const url = document.getElementById('url-' + idx).dataset.url;
-			if (url) window.open(url, '_blank');
+		// --- Subscription Management ---
+		async function loadSubscriptions() {
+			try {
+				const res = await fetch('/setting/api/subscriptions');
+				const data = await res.json();
+				if (data.success) {
+					renderSubscriptions(data.subscriptions);
+				} else {
+					document.getElementById('subs-grid').innerHTML = '<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--danger);">加载失败</div>';
+				}
+			} catch (e) {
+				document.getElementById('subs-grid').innerHTML = '<div style="text-align:center;padding:40px;grid-column:1/-1;color:var(--danger);">加载失败</div>';
+			}
+		}
+
+		function renderSubscriptions(subs) {
+			const origin = window.location.origin;
+			document.getElementById('stat-subs').textContent = subs.length;
+			if (subs.length === 0) {
+				document.getElementById('subs-grid').innerHTML = `
+					<div style="text-align:center;padding:40px;grid-column:1/-1;">
+						<div style="font-size:48px;margin-bottom:16px;">📭</div>
+						<p style="font-size:16px;color:var(--text-muted);margin-bottom:12px;">还没有保存任何订阅</p>
+						<button class="btn btn-primary" onclick="switchTab('feeds', document.querySelectorAll('.tab')[1])">去添加订阅</button>
+					</div>`;
+				return;
+			}
+			document.getElementById('subs-grid').innerHTML = subs.map(s => `
+				<div class="feed-card">
+					<div class="feed-header">
+						<div class="feed-icon">${s.icon}</div>
+						<div>
+							<div class="feed-name">${escapeHtml(s.title)}</div>
+							<div class="feed-platform">${s.platform}</div>
+						</div>
+					</div>
+					<div class="url-display active">${escapeHtml(origin + s.url)}</div>
+					<div class="btn-group">
+						<a href="${origin}${s.url}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">查看 RSS</a>
+						<button class="btn btn-secondary btn-sm" onclick="copySubUrl('${origin}${s.url}')">复制</button>
+						<button class="btn btn-danger btn-sm" onclick="deleteSubscription('${s.id}')">删除</button>
+					</div>
+				</div>`).join('');
+		}
+
+		function escapeHtml(str) {
+			return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+		}
+
+		async function copySubUrl(url) {
+			try { await navigator.clipboard.writeText(url); showToast('已复制到剪贴板'); }
+			catch (e) { showToast('复制失败', 'error'); }
+		}
+
+		async function saveSubscription(idx) {
+			const feed = window._feedTypes[idx];
+			const param = document.querySelector(`[data-index="${idx}"]`).value.trim();
+			const title = document.getElementById('title-' + idx).value.trim();
+			if (!param) { showToast('请先输入参数', 'error'); return; }
+
+			const btn = document.getElementById('save-' + idx);
+			btn.disabled = true; btn.textContent = '保存中...';
+			try {
+				const res = await fetch('/setting/api/subscriptions', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ route: feed.route, param, title }),
+				});
+				const data = await res.json();
+				if (data.success) {
+					showToast('订阅保存成功');
+					document.querySelector(`[data-index="${idx}"]`).value = '';
+					document.getElementById('title-' + idx).value = '';
+					document.getElementById('url-' + idx).textContent = '订阅链接将在此显示...';
+					document.getElementById('url-' + idx).classList.remove('active');
+					btn.disabled = true;
+					document.getElementById('copy-' + idx).disabled = true;
+				} else {
+					showToast(data.error || '保存失败', 'error');
+				}
+			} catch (e) {
+				showToast('网络错误: ' + e.message, 'error');
+			}
+			btn.textContent = '保存订阅';
+		}
+
+		async function deleteSubscription(id) {
+			if (!confirm('确定要删除这个订阅吗？')) return;
+			try {
+				const res = await fetch('/setting/api/subscriptions/' + id, { method: 'DELETE' });
+				const data = await res.json();
+				if (data.success) {
+					showToast('订阅已删除');
+					loadSubscriptions();
+				} else {
+					showToast(data.error || '删除失败', 'error');
+				}
+			} catch (e) {
+				showToast('网络错误', 'error');
+			}
 		}
 
 		// Enter key support

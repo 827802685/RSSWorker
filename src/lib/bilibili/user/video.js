@@ -39,4 +39,4 @@ let setup = (route) => {
 	route.get('/bilibili/user/video/:uid', deal);
 };
 
-export default { setup };
+export default { setup, deal };

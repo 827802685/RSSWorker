@@ -217,8 +217,7 @@ let requestGrpcUnary = async (path, headers, body) => {
 				return true;
 			},
 			connected: function (connection) {
-				console.log('[tls] connected');
-				client.prepare(uint8ArrayToBinaryString(requestBytes));
+			client.prepare(uint8ArrayToBinaryString(requestBytes));
 			},
 			tlsDataReady: async function (connection) {
 				try {
@@ -231,11 +230,9 @@ let requestGrpcUnary = async (path, headers, body) => {
 				try {
 					let frames = parser.push(binaryStringToUint8Array(connection.data.getBytes()));
 					for (let frame of frames) {
-						console.log('[tls] data type', frame.type);
-						if (frame.type === 0) {
-							dataChunks.push(extractDataPayload(frame));
-							console.log('[tls] data', dataChunks.reduce((total, chunk) => total + chunk.length, 0));
-						} else if (frame.type === 1 || frame.type === 9) {
+					if (frame.type === 0) {
+						dataChunks.push(extractDataPayload(frame));
+					} else if (frame.type === 1 || frame.type === 9) {
 							let headerBlock = headerBlockCollector.push(frame);
 							if (headerBlock !== null) {
 								let decodedHeaders = decodeHeaders(hpackCodec, { ...headerBlock, flags: headerBlock.flags & ~0x28 });
@@ -251,14 +248,12 @@ let requestGrpcUnary = async (path, headers, body) => {
 							return;
 						}
 						if (frame.type === 0 && frame.flags & 0x01) {
-							console.log('[tls] end of stream');
-							assertGrpcStatusOk(responseHeaders, responseTrailers);
+						assertGrpcStatusOk(responseHeaders, responseTrailers);
 							succeed(decodeGrpcUnaryMessage(concatUint8Arrays(dataChunks)));
 							return;
 						}
 						if ((frame.type === 1 || frame.type === 9) && responseTrailers['grpc-status'] !== undefined) {
-							console.log('[tls] end of stream');
-							assertGrpcStatusOk(responseHeaders, responseTrailers);
+						assertGrpcStatusOk(responseHeaders, responseTrailers);
 							succeed(decodeGrpcUnaryMessage(concatUint8Arrays(dataChunks)));
 							return;
 						}
@@ -268,14 +263,12 @@ let requestGrpcUnary = async (path, headers, body) => {
 				}
 			},
 			closed: function () {
-				console.log('[tls] disconnected');
-				if (!settled) {
+			if (!settled) {
 					fail(new Error('TLS connection closed before gRPC response completed'));
 				}
 			},
 			error: function (connection, error) {
-				console.log('[tls] error', error);
-				fail(error instanceof Error ? error : new Error(String(error)));
+			fail(error instanceof Error ? error : new Error(String(error)));
 			},
 		});
 		client.handshake();
@@ -312,7 +305,6 @@ let GetDynSpace = async (uid, accessKey = '') => {
 			if (e.grpcStatus !== undefined || i === retry_max - 1) {
 				throw e;
 			}
-			console.log(`[grpc] retry ${i + 1}/${retry_max - 1}: ${e.message}`);
 		}
 	}
 };

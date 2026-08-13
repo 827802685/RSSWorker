@@ -107,9 +107,9 @@ app.get('/rss', async (ctx) => {
 		const subs = await getSubscriptions(ctx.env);
 
 		const listHtml = subs.length === 0
-			? '<div class="empty">还没有订阅源<br><br><a href="/setting">前往控制面板添加订阅 →</a></div>'
-			: '<ul class="list">' + subs.map(function(s) {
-				return '<li><span class="icon">' + s.icon + '</span><a class="name" href="' + origin + s.url + '" target="_blank">' + escapeHtml(s.title || s.name) + '</a><span class="url">' + escapeHtml(origin + s.url) + '</span></li>';
+			? '<p class="empty">还没有订阅源。前往 <a href="/setting">控制面板</a> 添加。</p>'
+			: '<ul>' + subs.map(function(s) {
+				return '<li><a href="' + origin + s.url + '" target="_blank">' + escapeHtml(s.title || s.name) + '</a> <span class="url">' + escapeHtml(origin + s.url) + '</span></li>';
 			}).join('') + '</ul>';
 
 		const html = rssHtml

@@ -217,7 +217,7 @@ let requestGrpcUnary = async (path, headers, body) => {
 				return true;
 			},
 			connected: function (connection) {
-			client.prepare(uint8ArrayToBinaryString(requestBytes));
+				client.prepare(uint8ArrayToBinaryString(requestBytes));
 			},
 			tlsDataReady: async function (connection) {
 				try {
@@ -248,12 +248,12 @@ let requestGrpcUnary = async (path, headers, body) => {
 							return;
 						}
 						if (frame.type === 0 && frame.flags & 0x01) {
-						assertGrpcStatusOk(responseHeaders, responseTrailers);
+							assertGrpcStatusOk(responseHeaders, responseTrailers);
 							succeed(decodeGrpcUnaryMessage(concatUint8Arrays(dataChunks)));
 							return;
 						}
 						if ((frame.type === 1 || frame.type === 9) && responseTrailers['grpc-status'] !== undefined) {
-						assertGrpcStatusOk(responseHeaders, responseTrailers);
+							assertGrpcStatusOk(responseHeaders, responseTrailers);
 							succeed(decodeGrpcUnaryMessage(concatUint8Arrays(dataChunks)));
 							return;
 						}
@@ -263,12 +263,12 @@ let requestGrpcUnary = async (path, headers, body) => {
 				}
 			},
 			closed: function () {
-			if (!settled) {
+				if (!settled) {
 					fail(new Error('TLS connection closed before gRPC response completed'));
 				}
 			},
 			error: function (connection, error) {
-			fail(error instanceof Error ? error : new Error(String(error)));
+				fail(error instanceof Error ? error : new Error(String(error)));
 			},
 		});
 		client.handshake();

@@ -614,6 +614,7 @@
 
 		// Feeds
 		let origin = window.location.origin;
+
 		function generateUrl(route, param) {
 			if (!param) return '';
 			return origin + route.replace(':uid', encodeURIComponent(param)).replace(':username', encodeURIComponent(param));

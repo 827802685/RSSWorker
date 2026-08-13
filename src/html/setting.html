@@ -164,6 +164,13 @@
 			transition: all 0.2s;
 		}
 		.icon-btn:hover { background: var(--bg-hover); transform: scale(1.05); }
+		.doc-btn {
+			padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+			background: var(--bg-input); color: var(--text); font-size: 13px; font-weight: 500;
+			cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+			text-decoration: none; transition: all 0.2s; font-family: inherit;
+		}
+		.doc-btn:hover { background: var(--bg-hover); }
 
 		/* Dashboard */
 		.dashboard { display: none; }
@@ -216,6 +223,41 @@
 		.feed-platform { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 		.feed-desc { font-size: 13px; color: var(--text-muted); }
 		.env-hint { font-size: 12px; padding: 6px 10px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 6px; color: var(--warning); }
+
+		/* Help Modal */
+		.modal-overlay {
+			position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55);
+			display: none; align-items: center; justify-content: center; z-index: 9999; padding: 20px;
+		}
+		.modal-overlay.show { display: flex; }
+		.modal {
+			background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+			max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow);
+			padding: 8px 0;
+		}
+		.modal-header {
+			display: flex; align-items: center; justify-content: space-between;
+			padding: 16px 24px; border-bottom: 1px solid var(--border);
+			position: sticky; top: 0; background: var(--bg-card); z-index: 1;
+		}
+		.modal-header h3 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+		.modal-close {
+			width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+			background: var(--bg-input); color: var(--text); cursor: pointer; font-size: 16px;
+			display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+		}
+		.modal-close:hover { background: var(--bg-hover); }
+		.modal-body { padding: 20px 24px; }
+		.help-step { display: flex; gap: 12px; margin-bottom: 16px; }
+		.help-step-num {
+			width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
+			background: var(--accent-light); color: var(--accent); font-size: 13px; font-weight: 700;
+			display: flex; align-items: center; justify-content: center;
+		}
+		.help-step-content { flex: 1; }
+		.help-step-content p { font-size: 14px; }
+		.help-step-content .code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-top: 6px; word-break: break-all; color: var(--text); }
+		.help-note { font-size: 12px; color: var(--text-muted); background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
 		.input-group { display: flex; flex-direction: column; gap: 6px; }
 		.input-label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
 		.input-field {
@@ -342,6 +384,7 @@
 						<h1>RSSWorker 控制面板</h1>
 					</div>
 					<div class="header-actions">
+						<a href="/rss" class="doc-btn" title="RSS 订阅源列表">📄 文档</a>
 						<button class="icon-btn" onclick="toggleTheme()" title="切换主题" id="theme-btn">🌙</button>
 						<button class="icon-btn" onclick="doLogout()" title="退出登录">🚪</button>
 					</div>
@@ -436,6 +479,17 @@
 	</div>
 
 	<div class="toast" id="toast"><span class="toast-icon"></span><span class="toast-msg"></span></div>
+
+	<!-- Help Modal -->
+	<div class="modal-overlay" id="help-modal">
+		<div class="modal">
+			<div class="modal-header">
+				<h3><span id="help-modal-icon">📋</span><span id="help-modal-title">如何获取ID</span></h3>
+				<button class="modal-close" onclick="closeHelp()">✕</button>
+			</div>
+			<div class="modal-body" id="help-modal-body"></div>
+		</div>
+	</div>
 
 	<script>
 		const authView = document.getElementById('auth-view');
@@ -653,11 +707,87 @@
 						<button class="btn btn-secondary btn-sm" id="copy-${i}" disabled onclick="copyUrl(${i})">复制链接</button>
 						<button class="btn btn-primary btn-sm" id="save-${i}" disabled onclick="saveSubscription(${i})">保存订阅</button>
 					</div>
-					${feed.helpUrl ? `<a href="${feed.helpUrl}" class="feed-help" target="_blank" rel="noopener">📋 如何获取ID？→</a>` : ''}
+					${feed.helpUrl ? `<a href="javascript:void(0)" class="feed-help" onclick="showHelp(${i})">📋 如何获取ID？→</a>` : ''}
 				</div>`).join('');
 			// Store feed data for saveSubscription
 			window._feedTypes = feeds;
 		}
+
+		// Help content for "如何获取ID"
+		const HELP_CONTENT = {
+			'bilibili': {
+				icon: '📺',
+				title: '获取 B站 用户 UID',
+				steps: [
+					{ text: '在浏览器打开对方的主页，例如：' },
+					{ text: '<span class="code">https://space.bilibili.com/1</span>' },
+					{ text: 'URL 中 <b>/space.bilibili.com/</b> 后面的数字就是 UID，例如 <b>1</b>。' },
+					{ text: '或在 App 中进入对方空间，点击「···」→「复制主页链接」，链接中的数字即为 UID。' },
+				],
+			},
+			'douyin': {
+				icon: '🎵',
+				title: '获取抖音 sec_uid',
+				steps: [
+					{ text: '在抖音 App 打开目标用户主页，点击「分享」→「复制链接」，得到类似：' },
+					{ text: '<span class="code">https://v.douyin.com/xxxx/</span>' },
+					{ text: '在浏览器打开这个链接，会自动跳转到用户主页，URL 变为：' },
+					{ text: '<span class="code">https://www.douyin.com/user/MS4wLjABAAAA...</span>' },
+					{ text: '<b>/user/</b> 后面以 <b>MS4wLjABAAAA</b> 开头的那一串字符，就是 sec_uid，填入输入框即可。' },
+					{ text: '如果没有 Cookie，部分用户的视频可能无法获取，需要在 Cloudflare 后台配置 <b>DOUYIN_COOKIE</b> 环境变量。' },
+				],
+			},
+			'telegram': {
+				icon: '✈️',
+				title: '获取 Telegram 频道用户名',
+				steps: [
+					{ text: 'Telegram 频道用户名就是频道邀请链接 <b>/s/</b> 后面的部分（不含 @）。' },
+					{ text: '例如频道链接：<span class="code">https://t.me/s/durov</span>' },
+					{ text: '那么用户名就是 <b>durov</b>，填入输入框即可。' },
+				],
+			},
+			'weibo': {
+				icon: '📢',
+				title: '获取微博用户 UID',
+				steps: [
+					{ text: '在浏览器打开对方的微博主页，例如：' },
+					{ text: '<span class="code">https://weibo.com/u/1195242765</span>' },
+					{ text: 'URL 中 <b>/u/</b> 后面的数字就是 UID，例如 <b>1195242765</b>。' },
+					{ text: '如果主页是 <b>/weibo.com/昵称</b> 形式，点击右上角「···」查看主页链接，或使用「微博号」转换工具获取数字 UID。' },
+					{ text: '可能需要配置 <b>WEIBO_COOKIE</b> 环境变量才能获取数据。' },
+				],
+			},
+			'xiaohongshu': {
+				icon: '📕',
+				title: '获取小红书用户 ID',
+				steps: [
+					{ text: '在浏览器打开对方的个人主页，例如：' },
+					{ text: '<span class="code">https://www.xiaohongshu.com/user/profile/5d2aec020000000012037401</span>' },
+					{ text: 'URL 中 <b>/user/profile/</b> 后面的字符串就是用户 ID，例如 <b>5d2aec020000000012037401</b>。' },
+				],
+			},
+		};
+
+		function showHelp(idx) {
+			const feed = window._feedTypes[idx];
+			const help = HELP_CONTENT[feed.platform] || { icon: '📋', title: '如何获取ID', steps: [{ text: '请参考对方平台官方说明获取 ID。' }] };
+			document.getElementById('help-modal-icon').textContent = help.icon;
+			document.getElementById('help-modal-title').textContent = help.title;
+			document.getElementById('help-modal-body').innerHTML = help.steps.map((s, i) => `
+				<div class="help-step">
+					<div class="help-step-num">${i + 1}</div>
+					<div class="help-step-content"><p>${s.text}</p></div>
+				</div>`).join('');
+			document.getElementById('help-modal').classList.add('show');
+		}
+
+		function closeHelp() {
+			document.getElementById('help-modal').classList.remove('show');
+		}
+		document.getElementById('help-modal').addEventListener('click', (e) => {
+			if (e.target.id === 'help-modal') closeHelp();
+		});
+		document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHelp(); });
 
 		function updateUrl(input) {
 			const idx = input.dataset.index;

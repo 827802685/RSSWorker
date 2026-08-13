@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import indexHtml from './html/index.html';
 import settingHtml from './html/setting.html';
+import rssHtml from './html/rss.html';
 import notFoundHtml from './html/404.html';
 import errorHtml from './html/err.html';
 import robotsTxt from './robots.txt';
@@ -98,6 +99,28 @@ const FEED_TYPES = [
 app.use('/*', cors());
 
 // --- Routes ---
+
+// RSS 聚合索引页：展示所有已保存订阅
+app.get('/rss', async (ctx) => {
+	try {
+		const origin = new URL(ctx.req.url).origin;
+		const subs = await getSubscriptions(ctx.env);
+
+		const listHtml = subs.length === 0
+			? '<div class="empty">还没有订阅源<br><br><a href="/setting">前往控制面板添加订阅 →</a></div>'
+			: '<ul class="list">' + subs.map(function(s) {
+				return '<li><span class="icon">' + s.icon + '</span><a class="name" href="' + origin + s.url + '" target="_blank">' + escapeHtml(s.title || s.name) + '</a><span class="url">' + escapeHtml(origin + s.url) + '</span></li>';
+			}).join('') + '</ul>';
+
+		const html = rssHtml
+			.split('{{SUB_COUNT}}').join(String(subs.length))
+			.split('{{SUBSCRIPTIONS}}').join(listHtml);
+
+		return ctx.html(html);
+	} catch (e) {
+		return ctx.text('Error: ' + e.message, 500);
+	}
+});
 
 app.route('/rss', route);
 

@@ -3,6 +3,10 @@ main = "src/worker.js"
 compatibility_date = "2026-07-25"
 compatibility_flags = ["nodejs_compat"]
 
+routes = [
+  { pattern = "rss.zjkl.qzz.io", custom_domain = true }
+]
+
 [observability]
 enabled = true
 

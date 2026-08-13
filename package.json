@@ -10,6 +10,7 @@
 		"postinstall": "patch-package"
 	},
 	"devDependencies": {
+		"https-proxy-agent": "^9.1.0",
 		"wrangler": "^4.118.0"
 	},
 	"dependencies": {

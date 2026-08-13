@@ -2,6 +2,8 @@ name = "rssworker"
 main = "src/worker.js"
 compatibility_date = "2026-07-25"
 compatibility_flags = ["nodejs_compat"]
+account_id = "e7fbd632e8b0ebfdfc6fab38f9323ceb"
+workers_dev = true
 
 routes = [
   { pattern = "rss.zjkl.qzz.io", custom_domain = true }

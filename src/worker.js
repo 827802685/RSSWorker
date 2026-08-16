@@ -8,6 +8,7 @@ import errorHtml from './html/err.html';
 import robotsTxt from './robots.txt';
 
 import route from './route';
+import pull from './lib/pull';
 
 const app = new Hono();
 
@@ -94,9 +95,22 @@ const FEED_TYPES = [
 	{ platform: 'telegram', name: 'Telegram频道', icon: '✈️', route: '/rss/telegram/channel/:username', paramLabel: '频道用户名', paramPlaceholder: '如: durov', paramDescription: 'Telegram频道的用户名（不含@）', helpUrl: 'https://t.me/s/durov' },
 	{ platform: 'weibo', name: '微博用户', icon: '📢', route: '/rss/weibo/user/:uid', paramLabel: '微博用户UID', paramPlaceholder: '如: 1195242765', paramDescription: '微博用户UID，可在用户主页URL中获取', helpUrl: 'https://weibo.com/u/1195242765', envHint: '可能需要配置 WEIBO_COOKIE 环境变量' },
 	{ platform: 'xiaohongshu', name: '小红书用户', icon: '📕', route: '/rss/xiaohongshu/user/:uid', paramLabel: '小红书用户ID', paramPlaceholder: '如: 5d2aec020000000012037401', paramDescription: '小红书用户ID，在用户主页URL中获取', helpUrl: 'https://www.xiaohongshu.com/user/profile/5d2aec020000000012037401' },
+	{ platform: 'custom', name: '自定义网址', icon: '🔗', route: '/rss/custom/:id', paramLabel: '网页/RSS 地址', paramPlaceholder: '如: https://blog.zrf.me/atom.xml', paramDescription: '任意会更新的网址，系统自动识别 RSS/Atom 或网页并生成订阅', custom: true },
 ];
 
 app.use('/*', cors());
+
+// 记录站点 origin，供定时拉取（无请求上下文）重建订阅源完整 URL
+app.use('/*', async (ctx, next) => {
+	try {
+		const origin = new URL(ctx.req.url).origin;
+		const stored = await ctx.env.data.get('app:origin');
+		if (stored !== origin) {
+			await ctx.env.data.put('app:origin', origin);
+		}
+	} catch (e) {}
+	await next();
+});
 
 // --- Routes ---
 
@@ -266,19 +280,45 @@ app.post('/setting/api/subscriptions', async (ctx) => {
 		const param = (body.param || '').trim();
 		if (!param) return ctx.json({ success: false, error: '请输入参数' });
 		const subs = await getSubscriptions(ctx.env);
-		const url = feedType.route.replace(':uid', encodeURIComponent(param)).replace(':username', encodeURIComponent(param));
-		if (subs.some(s => s.url === url)) return ctx.json({ success: false, error: '该订阅已存在' });
-		const sub = {
-			id: generateId(),
-			platform: feedType.platform,
-			name: feedType.name,
-			icon: feedType.icon,
-			route: feedType.route,
-			param: param,
-			title: (body.title || '').trim() || (feedType.name + ' - ' + param),
-			url: url,
-			createdAt: Date.now(),
-		};
+
+		let sub;
+		if (feedType.custom) {
+			// 自定义网址订阅：校验 URL，生成 id，记录 sourceUrl
+			if (!/^https?:\/\//i.test(param)) return ctx.json({ success: false, error: '请输入以 http(s):// 开头的网址' });
+			const id = generateId();
+			const url = '/rss/custom/' + id;
+			if (subs.some(s => s.url === url)) return ctx.json({ success: false, error: '该订阅已存在' });
+			sub = {
+				id,
+				platform: 'custom',
+				name: feedType.name,
+				icon: feedType.icon,
+				route: feedType.route,
+				param: param,
+				sourceUrl: param,
+				title: (body.title || '').trim() || ('自定义订阅 - ' + param),
+				url,
+				pullEnabled: body.pullEnabled === true,
+				pullTimes: Array.isArray(body.pullTimes) ? body.pullTimes : [],
+				createdAt: Date.now(),
+			};
+		} else {
+			const url = feedType.route.replace(':uid', encodeURIComponent(param)).replace(':username', encodeURIComponent(param));
+			if (subs.some(s => s.url === url)) return ctx.json({ success: false, error: '该订阅已存在' });
+			sub = {
+				id: generateId(),
+				platform: feedType.platform,
+				name: feedType.name,
+				icon: feedType.icon,
+				route: feedType.route,
+				param: param,
+				title: (body.title || '').trim() || (feedType.name + ' - ' + param),
+				url: url,
+				pullEnabled: body.pullEnabled === true,
+				pullTimes: Array.isArray(body.pullTimes) ? body.pullTimes : [],
+				createdAt: Date.now(),
+			};
+		}
 		subs.push(sub);
 		await saveSubscriptions(ctx.env, subs);
 		return ctx.json({ success: true, subscription: sub });
@@ -314,8 +354,165 @@ app.put('/setting/api/subscriptions/:id', async (ctx) => {
 		if (body.title !== undefined) {
 			subs[idx].title = body.title.trim() || subs[idx].title;
 		}
+		if (body.sourceUrl !== undefined && subs[idx].platform === 'custom') {
+			subs[idx].sourceUrl = body.sourceUrl.trim();
+			subs[idx].param = subs[idx].sourceUrl;
+		}
+		if (body.pullEnabled !== undefined) {
+			subs[idx].pullEnabled = body.pullEnabled === true;
+		}
+		if (body.pullTimes !== undefined) {
+			subs[idx].pullTimes = Array.isArray(body.pullTimes) ? body.pullTimes : [];
+		}
 		await saveSubscriptions(ctx.env, subs);
 		return ctx.json({ success: true, subscription: subs[idx] });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+// --- 存储配置 ---
+app.get('/setting/api/storage', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) return ctx.json({ success: false, error: '未登录' });
+		const raw = await ctx.env.data.get('storage:config');
+		let cfg = {};
+		if (raw) { try { cfg = JSON.parse(raw); } catch (e) {} }
+		return ctx.json({ success: true, config: {
+			endpoint: cfg.endpoint || ctx.env.S3_ENDPOINT || '',
+			bucket: cfg.bucket || ctx.env.S3_BUCKET || '',
+			region: cfg.region || ctx.env.S3_REGION || 'auto',
+			pathPrefix: cfg.pathPrefix || ctx.env.S3_PATH_PREFIX || 'rssworker',
+			accessKey: cfg.accessKey || '',
+			secretKey: cfg.secretKey ? '********' : '',
+			hasAccessKey: !!(cfg.accessKey || ctx.env.S3_ACCESS_KEY),
+			hasSecretKey: !!(cfg.secretKey || ctx.env.S3_SECRET_KEY),
+			d1Ready: !!ctx.env.DB,
+		} });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+app.put('/setting/api/storage', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) return ctx.json({ success: false, error: '未登录' });
+		const body = await ctx.req.json();
+		const raw = await ctx.env.data.get('storage:config');
+		let cfg = {};
+		if (raw) { try { cfg = JSON.parse(raw); } catch (e) {} }
+		['endpoint', 'bucket', 'region', 'pathPrefix'].forEach(k => {
+			if (body[k] !== undefined) cfg[k] = String(body[k]).trim();
+		});
+		if (body.accessKey !== undefined) cfg.accessKey = String(body.accessKey).trim();
+		// 密钥：只有非空且非占位符才更新
+		if (body.secretKey !== undefined && body.secretKey !== '********' && body.secretKey !== '') {
+			cfg.secretKey = String(body.secretKey).trim();
+		}
+		if (cfg.secretKey === undefined) cfg.secretKey = '';
+		await ctx.env.data.put('storage:config', JSON.stringify(cfg));
+		return ctx.json({ success: true, config: cfg });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+// --- 推送配置 ---
+app.get('/setting/api/push', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) return ctx.json({ success: false, error: '未登录' });
+		const raw = await ctx.env.data.get('push:config');
+		let cfg = {};
+		if (raw) { try { cfg = JSON.parse(raw); } catch (e) {} }
+		return ctx.json({ success: true, config: {
+			enabled: cfg.enabled === true,
+			resendApiKey: cfg.resendApiKey || (ctx.env.RESEND_API_KEY ? 'set' : ''),
+			resendFrom: cfg.resendFrom || ctx.env.RESEND_FROM || 'RSSWorker <onboarding@resend.dev>',
+			resendTo: cfg.resendTo || ctx.env.RESEND_TO || '',
+			hasResendKey: !!(cfg.resendApiKey || ctx.env.RESEND_API_KEY),
+			qqAppId: cfg.qqAppId || ctx.env.QQ_APP_ID || '',
+			qqAppSecret: cfg.qqAppSecret ? '********' : '',
+			hasQqSecret: !!(cfg.qqAppSecret || ctx.env.QQ_APP_SECRET),
+			qqTargetType: cfg.qqTargetType || ctx.env.QQ_TARGET_TYPE || 'group',
+			qqTargetId: cfg.qqTargetId || ctx.env.QQ_TARGET_ID || '',
+		} });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+app.put('/setting/api/push', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) return ctx.json({ success: false, error: '未登录' });
+		const body = await ctx.req.json();
+		const raw = await ctx.env.data.get('push:config');
+		let cfg = {};
+		if (raw) { try { cfg = JSON.parse(raw); } catch (e) {} }
+		if (body.enabled !== undefined) cfg.enabled = body.enabled === true;
+		if (body.resendApiKey !== undefined) cfg.resendApiKey = String(body.resendApiKey).trim();
+		if (body.resendFrom !== undefined) cfg.resendFrom = String(body.resendFrom).trim();
+		if (body.resendTo !== undefined) cfg.resendTo = String(body.resendTo).trim();
+		if (body.qqAppId !== undefined) cfg.qqAppId = String(body.qqAppId).trim();
+		if (body.qqAppSecret !== undefined && body.qqAppSecret !== '********' && body.qqAppSecret !== '') {
+			cfg.qqAppSecret = String(body.qqAppSecret).trim();
+		}
+		if (body.qqTargetType !== undefined) cfg.qqTargetType = body.qqTargetType === 'channel' ? 'channel' : 'group';
+		if (body.qqTargetId !== undefined) cfg.qqTargetId = String(body.qqTargetId).trim();
+		await ctx.env.data.put('push:config', JSON.stringify(cfg));
+		return ctx.json({ success: true, config: cfg });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+// --- 手动拉取 ---
+app.post('/api/pull', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) {
+			// 允许用 pull 密钥手动触发
+			const key = ctx.req.header('X-Pull-Key') || new URL(ctx.req.url).searchParams.get('key') || '';
+			const stored = await ctx.env.data.get('pull:key');
+			if (key !== stored) return ctx.json({ success: false, error: '未授权' });
+		}
+		const result = await pull.pullAll(ctx.env, { trigger: 'all' });
+		return ctx.json({ success: true, ...result });
+	} catch (e) {
+		return ctx.json({ success: false, error: '拉取失败: ' + e.message });
+	}
+});
+
+// --- 拉取状态/日志 ---
+app.get('/setting/api/pull-status', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) return ctx.json({ success: false, error: '未登录' });
+		const raw = await ctx.env.data.get('pull:last');
+		const last = raw ? JSON.parse(raw) : null;
+		const subs = await getSubscriptions(ctx.env);
+		const scheduleCron = '*/10 * * * *';
+		const summary = subs.map(s => ({
+			id: s.id, title: s.title, pullEnabled: !!s.pullEnabled,
+			pullTimes: s.pullTimes || [], lastPull: s.lastPull || null,
+		}));
+		return ctx.json({ success: true, scheduleCron, last, subscriptions: summary, d1Ready: !!ctx.env.DB });
+	} catch (e) {
+		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
+	}
+});
+
+app.put('/setting/api/pull-key', async (ctx) => {
+	try {
+		const session = await verifySession(ctx);
+		if (!session) return ctx.json({ success: false, error: '未登录' });
+		const body = await ctx.req.json();
+		const key = (body.key || '').trim();
+		await ctx.env.data.put('pull:key', key);
+		return ctx.json({ success: true });
 	} catch (e) {
 		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
 	}
@@ -332,4 +529,32 @@ app.onError((err, c) => {
 	return c.html(result, 500);
 });
 
-export default app;
+// --- Cloudflare Cron 触发入口 ---
+async function scheduled(event, env, ctx) {
+	// 每 10 分钟触发，自动拉取到点的订阅源
+	try {
+		if (env.DB) {
+			await env.DB.prepare(`
+				CREATE TABLE IF NOT EXISTS items (
+					id TEXT PRIMARY KEY,
+					source_id TEXT,
+					title TEXT,
+					link TEXT,
+					description TEXT,
+					author TEXT,
+					guid TEXT,
+					published TEXT,
+					pulled_at INTEGER
+				)
+			`).run().catch(() => {});
+		}
+		await pull.pullAll(env, {});
+	} catch (e) {
+		console.error('scheduled error', e);
+	}
+}
+
+export default {
+	fetch: function (request, env, ctx) { return app.fetch(request, env, ctx); },
+	scheduled: scheduled,
+};

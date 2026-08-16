@@ -299,6 +299,12 @@
 		.info-row:last-child { border-bottom: none; }
 		.info-row .label { color: var(--text-muted); }
 		.info-row .value { font-weight: 500; }
+		.check-row { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+		.schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+		.schedule-item .si-info { flex: 1; min-width: 140px; }
+		.schedule-item .si-title { font-size: 14px; font-weight: 600; }
+		.schedule-item .si-url { font-size: 12px; color: var(--text-muted); word-break: break-all; }
+		.time-input { width: 90px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-input); color: var(--text); font-family: inherit; }
 
 		/* Toast */
 		.toast {
@@ -407,6 +413,9 @@
 				<div class="tabs">
 					<button class="tab active" onclick="switchTab('subs', this)">我的订阅</button>
 					<button class="tab" onclick="switchTab('feeds', this)">添加订阅</button>
+					<button class="tab" onclick="switchTab('schedule', this)">拉取调度</button>
+					<button class="tab" onclick="switchTab('storage', this)">存储</button>
+					<button class="tab" onclick="switchTab('push', this)">推送</button>
 					<button class="tab" onclick="switchTab('settings', this)">账号设置</button>
 					<button class="tab" onclick="switchTab('guide', this)">使用指南</button>
 				</div>
@@ -431,7 +440,124 @@
 					</div>
 				</div>
 
-				<!-- Settings Tab -->
+				<!-- Schedule Tab -->
+				<div class="tab-content" id="tab-schedule">
+					<div class="settings-card">
+						<h3>⏱ 每日自动拉取</h3>
+						<p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+							系统每 10 分钟检查一次，命中你设置的拉取时间即自动抓取该订阅源的最新内容，去重后可推送到邮件 / QQ。
+						</p>
+						<div class="info-row"><span class="label">调度 Cron</span><span class="value" id="pull-cron">*/10 * * * *</span></div>
+						<div class="info-row"><span class="label">D1 就绪</span><span class="value" id="pull-d1">-</span></div>
+						<div style="margin-top:8px;">
+							<button class="btn btn-primary btn-sm" id="btn-pull-all" onclick="manualPull()">立即拉取全部</button>
+							<span style="margin-left:10px;font-size:12px;color:var(--text-muted);">手动触发一次拉取（含非到点的源）</span>
+						</div>
+					</div>
+					<div class="settings-card">
+						<h3>订阅源调度列表</h3>
+						<p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">为每个订阅源设置是否自动拉取及每日拉取时间（HH:MM，可多个）。</p>
+						<div id="schedule-list"><div class="loading" style="margin:20px auto;"></div></div>
+					</div>
+				</div>
+
+			<!-- Storage Tab -->
+				<div class="tab-content" id="tab-storage">
+					<div class="settings-card">
+						<h3>🗄 D1 数据库（结构化条目）</h3>
+						<p style="font-size:13px;color:var(--text-muted);">Cloudflare D1 已自动绑定，拉取时会把新条目存入 <code>items</code> 表用于长期检索归档。</p>
+						<div class="info-row"><span class="label">状态</span><span class="value" id="d1-status">检测中...</span></div>
+					</div>
+					<div class="settings-card">
+						<h3>🏪 S3 对象存储（原始内容归档）</h3>
+						<p style="font-size:13px;color:var(--text-muted);">可选配置外部 S3 兼容存储（阿里云OSS、腾讯COS、MinIO等），把每次拉取的原始条目以 JSON 归档。留空则跳过归档。</p>
+						<div class="settings-form" id="storage-form">
+							<div class="input-group">
+								<label class="input-label">Endpoint</label>
+								<input class="input-field" type="text" id="s3-endpoint" placeholder="如: oss-cn-hangzhou.aliyuncs.com 或 https://s3.xxx.com" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">Bucket</label>
+								<input class="input-field" type="text" id="s3-bucket" placeholder="如: my-rss-archive" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">Region</label>
+								<input class="input-field" type="text" id="s3-region" placeholder="如: auto / us-east-1 / cn-hangzhou" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">路径前缀</label>
+								<input class="input-field" type="text" id="s3-prefix" placeholder="如: rssworker" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">AccessKey</label>
+								<input class="input-field" type="password" id="s3-accesskey" placeholder="Access Key Id" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">SecretKey</label>
+								<input class="input-field" type="password" id="s3-secretkey" placeholder="Secret Access Key（留空不修改）" />
+							</div>
+							<button class="btn btn-primary" style="align-self:flex-start;" onclick="saveStorage()">保存存储配置</button>
+						</div>
+					</div>
+				</div>
+
+			<!-- Push Tab -->
+				<div class="tab-content" id="tab-push">
+					<div class="settings-card">
+						<h3>🔔 推送开关</h3>
+						<div class="settings-form">
+							<label class="check-row"><input type="checkbox" id="push-enabled" /> 启用更新推送（抓取到新条目时自动推送）</label>
+						</div>
+					</div>
+					<div class="settings-card">
+						<h3>✉️ 邮件推送（Resend）</h3>
+						<p style="font-size:13px;color:var(--text-muted);">通过 Resend 邮件 API 发送更新摘要，网址：<a href="https://resend.com" target="_blank" rel="noopener">resend.com</a></p>
+						<div class="settings-form" id="push-resend-form">
+							<div class="input-group">
+								<label class="input-label">Resend API Key</label>
+								<input class="input-field" type="password" id="resend-key" placeholder="re_xxxxxxxx" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">发件人</label>
+								<input class="input-field" type="text" id="resend-from" placeholder="如: RSSWorker <onboarding@resend.dev>" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">收件人（可多个，英文逗号分隔）</label>
+								<input class="input-field" type="text" id="resend-to" placeholder="you@example.com" />
+							</div>
+						</div>
+					</div>
+					<div class="settings-card">
+						<h3>💬 QQ 推送（官方机器人）</h3>
+						<p style="font-size:13px;color:var(--text-muted);">使用 QQ 开放平台机器人向群聊或频道发送更新。需在 <a href="https://q.qq.com" target="_blank" rel="noopener">q.qq.com</a> 创建机器人获取 AppID / AppSecret。</p>
+						<div class="settings-form" id="push-qq-form">
+							<div class="input-group">
+								<label class="input-label">QQ AppID</label>
+								<input class="input-field" type="text" id="qq-appid" placeholder="机器人 AppID" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">QQ AppSecret</label>
+								<input class="input-field" type="password" id="qq-secret" placeholder="AppSecret（留空不修改）" />
+							</div>
+							<div class="input-group">
+								<label class="input-label">目标类型</label>
+								<select class="input-field" id="qq-target-type">
+									<option value="group">群聊</option>
+									<option value="channel">频道（子频道）</option>
+								</select>
+							</div>
+							<div class="input-group">
+								<label class="input-label">目标 ID（群 openid 或频道 id）</label>
+								<input class="input-field" type="text" id="qq-target-id" placeholder="群 openid 或子频道 id" />
+							</div>
+						</div>
+					</div>
+					<div class="settings-card">
+						<button class="btn btn-primary" onclick="savePush()">保存推送配置</button>
+					</div>
+				</div>
+
+			<!-- Settings Tab -->
 				<div class="tab-content" id="tab-settings">
 					<div class="settings-card">
 						<h3>账号信息</h3>
@@ -528,6 +654,12 @@
 			document.getElementById('tab-' + name).classList.add('active');
 			if (name === 'subs') {
 				loadSubscriptions();
+			} else if (name === 'schedule') {
+				loadSchedule();
+			} else if (name === 'storage') {
+				loadStorage();
+			} else if (name === 'push') {
+				loadPush();
 			}
 		}
 
@@ -670,6 +802,10 @@
 
 		function generateUrl(route, param) {
 			if (!param) return '';
+			if (route.indexOf('/custom/') !== -1) {
+				// 自定义订阅保存后由服务器生成 id，此处仅提示
+				return '保存后自动生成（目标: ' + param + '）';
+			}
 			return origin + route.replace(':uid', encodeURIComponent(param)).replace(':username', encodeURIComponent(param));
 		}
 
@@ -698,16 +834,20 @@
 						<input class="input-field" type="text" placeholder="${feed.paramPlaceholder}" data-route="${feed.route}" data-index="${i}" oninput="updateUrl(this)" />
 					</div>
 					<div class="input-group">
-						<label class="input-label">自定义名称（可选）</label>
-						<input class="input-field" type="text" placeholder="如: 某某的B站动态" id="title-${i}" />
-					</div>
-					<div class="url-display" id="url-${i}">订阅链接将在此显示...</div>
-					<div class="btn-group">
-						<button class="btn btn-secondary btn-sm" id="copy-${i}" disabled onclick="copyUrl(${i})">复制链接</button>
-						<button class="btn btn-primary btn-sm" id="save-${i}" disabled onclick="saveSubscription(${i})">保存订阅</button>
-					</div>
-					${feed.helpUrl ? `<a href="javascript:void(0)" class="feed-help" onclick="showHelp(${i})">📋 如何获取ID？→</a>` : ''}
-				</div>`).join('');
+					<label class="input-label">自定义名称（可选）</label>
+					<input class="input-field" type="text" placeholder="如: 某某的B站动态" id="title-${i}" />
+				</div>
+				<div class="input-group">
+					<label class="check-row"><input type="checkbox" id="pull-on-${i}" /> 启用每日自动拉取</label>
+					<div style="font-size:12px;color:var(--text-muted);">拉取到新条目后自动去重，并按「推送」设置发送通知（可稍后在「拉取调度」中调整时间）。</div>
+				</div>
+				<div class="url-display" id="url-${i}">订阅链接将在此显示...</div>
+				<div class="btn-group">
+					<button class="btn btn-secondary btn-sm" id="copy-${i}" disabled onclick="copyUrl(${i})">复制链接</button>
+					<button class="btn btn-primary btn-sm" id="save-${i}" disabled onclick="saveSubscription(${i})">保存订阅</button>
+				</div>
+				${feed.helpUrl ? `<a href="javascript:void(0)" class="feed-help" onclick="showHelp(${i})">📋 如何获取ID？→</a>` : ''}
+			</div>`).join('');
 			// Store feed data for saveSubscription
 			window._feedTypes = feeds;
 		}
@@ -855,7 +995,8 @@
 						</div>
 					</div>
 					<div class="url-display active">${escapeHtml(origin + s.url)}</div>
-					<div class="btn-group">
+				${s.pullEnabled ? `<div style="font-size:12px;color:var(--success);margin-top:4px;">⏱ 自动拉取 ${(s.pullTimes && s.pullTimes.length) ? s.pullTimes.join('、') : '已启用'}</div>` : ''}
+				<div class="btn-group">
 						<a href="${origin}${s.url}" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">查看 RSS</a>
 						<button class="btn btn-secondary btn-sm" onclick="copySubUrl('${origin}${s.url}')">复制</button>
 						<button class="btn btn-danger btn-sm" onclick="deleteSubscription('${s.id}')">删除</button>
@@ -881,10 +1022,11 @@
 			const btn = document.getElementById('save-' + idx);
 			btn.disabled = true; btn.textContent = '保存中...';
 			try {
+				const pullEnabled = document.getElementById('pull-on-' + idx) ? document.getElementById('pull-on-' + idx).checked : false;
 				const res = await fetch('/setting/api/subscriptions', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ route: feed.route, param, title }),
+					body: JSON.stringify({ route: feed.route, param, title, pullEnabled }),
 				});
 				const data = await res.json();
 				if (data.success) {
@@ -916,11 +1058,169 @@
 					showToast(data.error || '删除失败', 'error');
 				}
 			} catch (e) {
-				showToast('网络错误', 'error');
-			}
+			showToast('网络错误', 'error');
 		}
+	}
 
-		// Enter key support
+	// --- 拉取调度 ---
+	async function loadSchedule() {
+		try {
+			const res = await fetch('/setting/api/pull-status');
+			const data = await res.json();
+			if (!data.success) { showToast(data.error || '加载失败', 'error'); return; }
+			document.getElementById('pull-cron').textContent = data.scheduleCron || '*/10 * * * *';
+			document.getElementById('pull-d1').textContent = data.d1Ready ? '✅ 已绑定' : '⚠️ 未绑定';
+			const list = data.subscriptions || [];
+			if (list.length === 0) {
+				document.getElementById('schedule-list').innerHTML = '<p style="color:var(--text-muted);">暂无订阅源。</p>';
+				return;
+			}
+			document.getElementById('schedule-list').innerHTML = list.map(s => `
+				<div class="schedule-item" id="sch-${s.id}">
+					<div class="si-info">
+						<div class="si-title">${escapeHtml(s.title)}</div>
+						<div class="si-url">${s.pullTimes && s.pullTimes.length ? s.pullTimes.join('、') + ' 点拉取' : '未设置拉取时间'}</div>
+					</div>
+					<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+						<label class="check-row"><input type="checkbox" ${s.pullEnabled ? 'checked' : ''} onchange="togglePull('${s.id}', this.checked)" /> 启用</label>
+						<input type="time" class="time-input" value="${(s.pullTimes && s.pullTimes[0]) || ''}" onchange="setTime('${s.id}', this.value)" />
+						<button class="btn btn-secondary btn-sm" onclick="addTime('${s.id}')">+ 时间</button>
+					</div>
+				</div>`).join('');
+		} catch (e) {
+			document.getElementById('schedule-list').innerHTML = '<p style="color:var(--danger)">加载失败</p>';
+		}
+	}
+
+	async function togglePull(id, on) {
+		try {
+			const res = await fetch('/setting/api/subscriptions/' + id, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ pullEnabled: on }),
+			});
+			const data = await res.json();
+			showToast(data.success ? (on ? '已启用自动拉取' : '已停用自动拉取') : (data.error || '操作失败'), data.success ? 'success' : 'error');
+		} catch (e) { showToast('网络错误', 'error'); }
+	}
+
+	async function setTime(id, val) {
+		try {
+			const res = await fetch('/setting/api/subscriptions/' + id, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ pullTimes: [val] }),
+			});
+			const data = await res.json();
+			showToast(data.success ? '已设置拉取时间 ' + val : (data.error || '操作失败'), data.success ? 'success' : 'error');
+			loadSchedule();
+		} catch (e) { showToast('网络错误', 'error'); }
+	}
+
+	async function addTime(id) {
+		showToast('每个源可设置单个拉取时间；如需多时间可在上方输入后保存', 'error');
+	}
+
+	async function manualPull() {
+		const btn = document.getElementById('btn-pull-all');
+		btn.disabled = true; btn.textContent = '拉取中...';
+		try {
+			const res = await fetch('/api/pull', { method: 'POST' });
+			const data = await res.json();
+			if (data.success) {
+				const took = data.results ? data.results.filter(r => r.ok).length : 0;
+				const fresh = data.results ? data.results.reduce((a, r) => a + (r.newItems || 0), 0) : 0;
+				showToast(`拉取完成：${took} 个源，新增 ${fresh} 条`);
+				loadSchedule();
+			} else {
+				showToast(data.error || '拉取失败', 'error');
+			}
+		} catch (e) { showToast('网络错误: ' + e.message, 'error'); }
+		btn.disabled = false; btn.textContent = '立即拉取全部';
+	}
+
+	// --- 存储 ---
+	async function loadStorage() {
+		try {
+			const res = await fetch('/setting/api/storage');
+			const data = await res.json();
+			if (!data.success) { document.getElementById('d1-status').textContent = '加载失败'; return; }
+			const c = data.config || {};
+			document.getElementById('d1-status').textContent = c.d1Ready ? '✅ 已绑定（rssworker-db）' : '⚠️ 未绑定';
+			document.getElementById('s3-endpoint').value = c.endpoint || '';
+			document.getElementById('s3-bucket').value = c.bucket || '';
+			document.getElementById('s3-region').value = c.region || 'auto';
+			document.getElementById('s3-prefix').value = c.pathPrefix || 'rssworker';
+			document.getElementById('s3-accesskey').value = c.accessKey || '';
+			document.getElementById('s3-secretkey').placeholder = c.hasSecretKey ? 'SecretKey（已设置，留空不修改）' : 'Secret Access Key';
+		} catch (e) { document.getElementById('d1-status').textContent = '加载失败'; }
+	}
+
+	async function saveStorage() {
+		const body = {
+			endpoint: document.getElementById('s3-endpoint').value.trim(),
+			bucket: document.getElementById('s3-bucket').value.trim(),
+			region: document.getElementById('s3-region').value.trim(),
+			pathPrefix: document.getElementById('s3-prefix').value.trim(),
+			accessKey: document.getElementById('s3-accesskey').value.trim(),
+			secretKey: document.getElementById('s3-secretkey').value,
+		};
+		if (!body.secretKey) delete body.secretKey;
+		try {
+			const res = await fetch('/setting/api/storage', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			const data = await res.json();
+			showToast(data.success ? '存储配置已保存' : (data.error || '保存失败'), data.success ? 'success' : 'error');
+			if (data.success) loadStorage();
+		} catch (e) { showToast('网络错误', 'error'); }
+	}
+
+	// --- 推送 ---
+	async function loadPush() {
+		try {
+			const res = await fetch('/setting/api/push');
+			const data = await res.json();
+			if (!data.success) return;
+			const c = data.config || {};
+			document.getElementById('push-enabled').checked = !!c.enabled;
+			document.getElementById('resend-key').placeholder = c.hasResendKey ? 'API Key（已设置，留空不修改）' : 're_xxxxxxxx';
+			document.getElementById('resend-from').value = c.resendFrom || '';
+			document.getElementById('resend-to').value = c.resendTo || '';
+			document.getElementById('qq-appid').value = c.qqAppId || '';
+			document.getElementById('qq-secret').placeholder = c.hasQqSecret ? 'AppSecret（已设置，留空不修改）' : 'AppSecret';
+			document.getElementById('qq-target-type').value = c.qqTargetType || 'group';
+			document.getElementById('qq-target-id').value = c.qqTargetId || '';
+		} catch (e) {}
+	}
+
+	async function savePush() {
+		const body = {
+			enabled: document.getElementById('push-enabled').checked,
+			resendApiKey: document.getElementById('resend-key').value.trim(),
+			resendFrom: document.getElementById('resend-from').value.trim(),
+			resendTo: document.getElementById('resend-to').value.trim(),
+			qqAppId: document.getElementById('qq-appid').value.trim(),
+			qqTargetType: document.getElementById('qq-target-type').value,
+			qqTargetId: document.getElementById('qq-target-id').value.trim(),
+		};
+		const sk = document.getElementById('qq-secret').value;
+		if (sk) body.qqAppSecret = sk;
+		try {
+			const res = await fetch('/setting/api/push', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			const data = await res.json();
+			showToast(data.success ? '推送配置已保存' : (data.error || '保存失败'), data.success ? 'success' : 'error');
+			if (data.success) loadPush();
+		} catch (e) { showToast('网络错误', 'error'); }
+	}
+
+	// Enter key support
 		document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 		document.getElementById('setup-password2').addEventListener('keydown', e => { if (e.key === 'Enter') doSetup(); });
 

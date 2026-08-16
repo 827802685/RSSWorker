@@ -3,11 +3,12 @@ import telegram_channel from './lib/telegram/channel';
 import weibo_user from './lib/weibo/user';
 import xiaohongshu_user from './lib/xiaohongshu/user';
 import douyin_user from './lib/douyin/user';
+import custom_source from './lib/custom';
 
 const route = new Hono();
 
 // 轻量插件：静态导入（仅使用 fetch + HTMLRewriter）
-let lightPlugins = [telegram_channel, weibo_user, xiaohongshu_user, douyin_user];
+let lightPlugins = [telegram_channel, weibo_user, xiaohongshu_user, douyin_user, custom_source];
 for (let plugin of lightPlugins) {
 	plugin.setup(route);
 }

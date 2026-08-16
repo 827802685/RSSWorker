@@ -15,3 +15,28 @@ enabled = true
 [[kv_namespaces]]
 binding = "data"
 id = "35eb361144044abd8c2f88b9baae4a17"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rssworker-db"
+database_id = "ae46f35e-bba5-4e49-9822-93c1c54e342f"
+
+# 拉取调度触发器：每 10 分钟检查一次各订阅源是否到点拉取
+[triggers]
+crons = ["*/10 * * * *"]
+
+# 外部服务配置（优先使用控制面板保存的 KV 配置，此处为兜底默认值）
+[vars]
+S3_ENDPOINT = ""
+S3_REGION = "auto"
+S3_BUCKET = ""
+S3_ACCESS_KEY = ""
+S3_SECRET_KEY = ""
+S3_PATH_PREFIX = "rssworker"
+RESEND_API_KEY = ""
+RESEND_FROM = "RSSWorker <onboarding@resend.dev>"
+RESEND_TO = ""
+QQ_APP_ID = ""
+QQ_APP_SECRET = ""
+QQ_TARGET_TYPE = "group"
+QQ_TARGET_ID = ""

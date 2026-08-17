@@ -1128,9 +1128,17 @@
 			const res = await fetch('/api/pull', { method: 'POST' });
 			const data = await res.json();
 			if (data.success) {
-				const took = data.results ? data.results.filter(r => r.ok).length : 0;
-				const fresh = data.results ? data.results.reduce((a, r) => a + (r.newItems || 0), 0) : 0;
-				showToast(`拉取完成：${took} 个源，新增 ${fresh} 条`);
+				const ok = data.results || [];
+				const took = ok.filter(r => r.ok).length;
+				const fresh = ok.reduce((a, r) => a + (r.newItems || 0), 0);
+				let msg = `拉取完成：${took} 个源，新增 ${fresh} 条`;
+				const failed = ok.filter(r => !r.ok && r.error);
+				if (failed.length) {
+					msg += '；失败 ' + failed.length + ' 个：' + failed[0].error;
+				} else if (ok.length === 0) {
+					msg += '（暂无订阅源，请在「添加订阅」中添加）';
+				}
+				showToast(msg, failed.length ? 'error' : (fresh ? 'success' : 'info'));
 				loadSchedule();
 			} else {
 				showToast(data.error || '拉取失败', 'error');

@@ -52,16 +52,31 @@ async function ensureSchema(env) {
 	} catch (e) { return false; }
 }
 
+// 带超时和重试的 fetch
+async function fetchWithTimeout(url, headers) {
+	let lastErr = null;
+	for (let i = 0; i < 2; i++) {
+		const ctrl = new AbortController();
+		const timer = setTimeout(() => ctrl.abort(), 25000);
+		try {
+			const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 RSSWorker', ...headers }, redirect: 'follow', signal: ctrl.signal });
+			clearTimeout(timer);
+			return res;
+		} catch (e) {
+			clearTimeout(timer);
+			lastErr = e;
+		}
+	}
+	throw lastErr || new Error('fetch 失败');
+}
+
 // 从给定 URL 抓取并解析，返回 {title, items}
 async function fetchAndParse(url, origin, sub) {
 	if (sub.sourceUrl) {
 		// 自定义源：直接抓取页面并自动识别 RSS/HTML
-		const res = await fetch(sub.sourceUrl, {
-			headers: {
-				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
-				Accept: 'application/rss+xml, application/atom+xml, application/xml, text/html,*/*;q=0.8',
-			},
-			redirect: 'follow',
+		const res = await fetchWithTimeout(sub.sourceUrl, {
+			'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36',
+			Accept: 'application/rss+xml, application/atom+xml, application/xml, text/html,*/*;q=0.8',
 		});
 		if (!res.ok) throw new Error('HTTP ' + res.status);
 		const text = await res.text();
@@ -69,7 +84,7 @@ async function fetchAndParse(url, origin, sub) {
 	}
 	// 平台路由或其他已生成 RSS：抓自身生成源
 	const selfUrl = origin + sub.url;
-	const res = await fetch(selfUrl, { headers: { 'User-Agent': 'Mozilla/5.0 RSSWorker' }, redirect: 'follow' });
+	const res = await fetchWithTimeout(selfUrl);
 	if (!res.ok) throw new Error('HTTP ' + res.status);
 	const text = await res.text();
 	if (/<rss\b|<rdf/.test(text)) return parseRss(text, selfUrl);
@@ -199,6 +214,7 @@ async function pullAll(env, { trigger } = {}) {
 			sub.lastPull = Date.now();
 		} catch (e) {
 			rec.error = e.message;
+			if (typeof console !== 'undefined') console.error('[pull]', sub.id, sub.title, 'fail:', e.message);
 			sub.lastPull = Date.now();
 		}
 		results.push(rec);

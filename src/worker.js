@@ -469,7 +469,7 @@ app.put('/setting/api/push', async (ctx) => {
 	}
 });
 
-// --- 手动拉取 ---
+// --- 手动拉取（异步：立即返回，后台执行，避免 522 超时） ---
 app.post('/api/pull', async (ctx) => {
 	try {
 		const session = await verifySession(ctx);
@@ -479,8 +479,20 @@ app.post('/api/pull', async (ctx) => {
 			const stored = await ctx.env.data.get('pull:key');
 			if (key !== stored) return ctx.json({ success: false, error: '未授权' });
 		}
-		const result = await pull.pullAll(ctx.env, { trigger: 'all' });
-		return ctx.json({ success: true, ...result });
+		// 已在进行中则直接返回，不重复触发
+		const running = await ctx.env.data.get('pull:running');
+		if (running === '1') {
+			return ctx.json({ success: true, async: true, running: true, message: '拉取进行中，请稍候' });
+		}
+		const exec = ctx.executionCtx;
+		exec.waitUntil((async () => {
+			try {
+				await pull.pullAll(ctx.env, { trigger: 'all' });
+			} catch (e) {
+				console.error('后台拉取失败', e);
+			}
+		})());
+		return ctx.json({ success: true, async: true, running: false, message: '已开始拉取，请在下方查看进度' });
 	} catch (e) {
 		return ctx.json({ success: false, error: '拉取失败: ' + e.message });
 	}
@@ -493,13 +505,14 @@ app.get('/setting/api/pull-status', async (ctx) => {
 		if (!session) return ctx.json({ success: false, error: '未登录' });
 		const raw = await ctx.env.data.get('pull:last');
 		const last = raw ? JSON.parse(raw) : null;
+		const running = (await ctx.env.data.get('pull:running')) === '1';
 		const subs = await getSubscriptions(ctx.env);
 		const scheduleCron = '*/10 * * * *';
 		const summary = subs.map(s => ({
 			id: s.id, title: s.title, pullEnabled: !!s.pullEnabled,
 			pullTimes: s.pullTimes || [], lastPull: s.lastPull || null,
 		}));
-		return ctx.json({ success: true, scheduleCron, last, subscriptions: summary, d1Ready: !!ctx.env.DB });
+		return ctx.json({ success: true, scheduleCron, last, running, subscriptions: summary, d1Ready: !!ctx.env.DB });
 	} catch (e) {
 		return ctx.json({ success: false, error: '服务器错误: ' + e.message });
 	}

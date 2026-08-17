@@ -1127,24 +1127,48 @@
 		try {
 			const res = await fetch('/api/pull', { method: 'POST' });
 			const data = await res.json();
-			if (data.success) {
-				const ok = data.results || [];
-				const took = ok.filter(r => r.ok).length;
-				const fresh = ok.reduce((a, r) => a + (r.newItems || 0), 0);
-				let msg = `拉取完成：${took} 个源，新增 ${fresh} 条`;
-				const failed = ok.filter(r => !r.ok && r.error);
-				if (failed.length) {
-					msg += '；失败 ' + failed.length + ' 个：' + failed[0].error;
-				} else if (ok.length === 0) {
-					msg += '（暂无订阅源，请在「添加订阅」中添加）';
-				}
-				showToast(msg, failed.length ? 'error' : (fresh ? 'success' : 'info'));
-				loadSchedule();
-			} else {
+			if (!data.success) {
 				showToast(data.error || '拉取失败', 'error');
+				btn.disabled = false; btn.textContent = '立即拉取全部'; return;
 			}
-		} catch (e) { showToast('网络错误: ' + e.message, 'error'); }
-		btn.disabled = false; btn.textContent = '立即拉取全部';
+			if (data.running) {
+				showToast('已在拉取中，请稍候查看进度', 'info');
+			} else {
+				showToast('已开始后台拉取，正在获取最新内容...', 'info');
+			}
+			// 轮询拉取状态，直到完成
+			pollPullDone(btn);
+		} catch (e) { showToast('网络错误: ' + e.message, 'error'); btn.disabled = false; btn.textContent = '立即拉取全部'; }
+	}
+
+	async function pollPullDone(btn) {
+		let tries = 0;
+		const timer = setInterval(async () => {
+			tries++;
+			try {
+				const res = await fetch('/setting/api/pull-status');
+				const d = await res.json();
+				if (!d.success) return;
+				if (d.running && tries < 60) return; // 最多等约 1 分钟
+				clearInterval(timer);
+				btn.disabled = false; btn.textContent = '立即拉取全部';
+				loadSchedule();
+				if (d.last && d.last.results) {
+					const ok = d.last.results;
+					const took = ok.filter(r => r.ok).length;
+					const fresh = ok.reduce((a, r) => a + (r.newItems || 0), 0);
+					let msg = `拉取完成：${took} 个源，新增 ${fresh} 条`;
+					const failed = ok.filter(r => !r.ok && r.error);
+					if (failed.length) msg += '；失败 ' + failed.length + ' 个：' + failed[0].error;
+					showToast(msg, failed.length ? 'error' : (fresh ? 'success' : 'info'));
+				} else {
+					showToast('拉取已完成', 'success');
+				}
+			} catch (e) {
+				clearInterval(timer);
+				btn.disabled = false; btn.textContent = '立即拉取全部';
+			}
+		}, 1000);
 	}
 
 	// --- 存储 ---

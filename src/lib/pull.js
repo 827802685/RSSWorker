@@ -190,7 +190,10 @@ async function pullAll(env, { trigger } = {}) {
 	const clock = nowMin();
 	let changed = false;
 
-	for (const sub of subs) {
+	// 标记拉取进行中，前端可轮询
+	await writeKV(env, 'pull:running', '1');
+	try {
+		for (const sub of subs) {
 		// trigger==='all' 时忽略时间调度；正常 cron 按调度
 		if (!sub.pullEnabled) {
 			if (!trigger) continue;
@@ -218,6 +221,10 @@ async function pullAll(env, { trigger } = {}) {
 			sub.lastPull = Date.now();
 		}
 		results.push(rec);
+	}
+	} finally {
+		// 拉取结束（无论成功/失败）清除进行中标记
+		await writeKV(env, 'pull:running', '0');
 	}
 
 	if (changed) {
